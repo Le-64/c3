@@ -143,6 +143,22 @@ body {
       <div class="current-val">目前目標：<span id="currentTarget">—</span></div>
       <input class="field-input" type="number" id="targetInput" placeholder="例：440000">
     </div>
+    <div class="field-group">
+      <label class="field-label">Q/T 目標</label>
+      <input class="field-input" type="text" id="qtTargetInput" placeholder="例：85%">
+    </div>
+    <div class="field-group">
+      <label class="field-label">NPS 目標</label>
+      <input class="field-input" type="text" id="npsTargetInput" placeholder="例：90">
+    </div>
+    <div class="field-group">
+      <label class="field-label">MTD 目標</label>
+      <input class="field-input" type="text" id="mtdTargetInput" placeholder="例：50000">
+    </div>
+    <div class="field-group">
+      <label class="field-label">YTD 目標</label>
+      <input class="field-input" type="text" id="ytdTargetInput" placeholder="例：600000">
+    </div>
     <button class="save-btn" id="saveTargetBtn">儲存目標</button>
     <div class="status-msg" id="targetStatus"></div>
   </div>
@@ -186,6 +202,10 @@ async function loadTarget() {
     const t = data?.target || 0;
     document.getElementById('currentTarget').textContent = t ? t.toLocaleString() + ' 元' : '—';
     document.getElementById('targetInput').value = t || '';
+    document.getElementById('qtTargetInput').value  = data?.qt_target  || '';
+    document.getElementById('npsTargetInput').value = data?.nps_target || '';
+    document.getElementById('mtdTargetInput').value = data?.mtd_target || '';
+    document.getElementById('ytdTargetInput').value = data?.ytd_target || '';
   } catch {}
 }
 
@@ -203,7 +223,14 @@ document.getElementById('saveTargetBtn').addEventListener('click', async () => {
     await fetch(`${FIREBASE_URL}/config.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...current, target: val })
+      body: JSON.stringify({
+          ...current,
+          target:     val,
+          qt_target:  document.getElementById('qtTargetInput').value.trim(),
+          nps_target: document.getElementById('npsTargetInput').value.trim(),
+          mtd_target: document.getElementById('mtdTargetInput').value.trim(),
+          ytd_target: document.getElementById('ytdTargetInput').value.trim()
+        })
     });
     document.getElementById('currentTarget').textContent = val.toLocaleString() + ' 元';
     showMsg('targetStatus', '✓ 目標已更新！', 'ok');

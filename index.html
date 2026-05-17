@@ -112,7 +112,14 @@ body {
 .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .metric-block { display: flex; flex-direction: column; gap: 5px; }
 .metric-block.full { grid-column: 1 / -1; }
+.metric-label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
 .metric-label { font-size: 12px; color: #777; font-weight: 600; letter-spacing: 0.3px; }
+.metric-target-badge {
+  font-size: 11px; font-weight: 600; color: #0057C8;
+  background: #E8F0FE; padding: 2px 8px; border-radius: 10px;
+  display: none;
+}
+.metric-target-badge.show { display: inline-block; }
 .field-input {
   width: 100%; padding: 11px 13px;
   border: 2px solid #E8ECF2; border-radius: 10px;
@@ -159,6 +166,57 @@ body {
 .notes-area:focus { border-color: #003B8E; background: #fff; }
 .notes-area::placeholder { color: #BBBBBB; }
 
+/* ── Handover ── */
+.ho-section { margin-bottom: 16px; }
+.ho-section:last-child { margin-bottom: 0; }
+.ho-section-title {
+  font-size: 11px; font-weight: 700; color: #AAA;
+  letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px;
+}
+.ho-divider { height: 1px; background: #EEF2F7; margin: 14px 0; }
+.ho-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid #F2F4F8;
+}
+.ho-item:last-of-type { border-bottom: none; }
+.ho-item-text { flex: 1; font-size: 14px; color: #333; line-height: 1.4; word-break: break-all; }
+.ho-item-date {
+  font-size: 11px; color: #999; white-space: nowrap;
+  background: #F2F4F8; padding: 2px 8px; border-radius: 8px; flex-shrink: 0;
+}
+.ho-item-dot { color: #003B8E; font-size: 18px; flex-shrink: 0; line-height: 1; }
+.ho-check-btn {
+  width: 38px; height: 38px; border-radius: 10px;
+  border: 2px solid #4CAF50; color: #4CAF50;
+  font-size: 18px; cursor: pointer; background: #fff;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: all 0.15s;
+}
+.ho-check-btn:active { background: #E8F5E9; transform: scale(0.93); }
+.ho-del-btn {
+  width: 34px; height: 34px; border-radius: 8px;
+  border: 2px solid #E0E0E0; color: #BBB;
+  font-size: 14px; cursor: pointer; background: #fff;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.ho-del-btn:active { border-color: #EF5350; color: #EF5350; }
+.ho-empty { font-size: 13px; color: #CCC; text-align: center; padding: 10px 0; }
+.ho-input-row { display: flex; gap: 8px; margin-top: 12px; }
+.ho-input {
+  flex: 1; padding: 11px 13px;
+  border: 2px solid #E8ECF2; border-radius: 10px;
+  font-size: 15px; color: #333; background: #FAFBFD;
+  outline: none; font-family: inherit; transition: border-color 0.2s;
+}
+.ho-input:focus { border-color: #003B8E; background: #fff; }
+.ho-add-btn {
+  width: 46px; height: 46px; border-radius: 10px;
+  border: none; background: #003B8E; color: #fff;
+  font-size: 26px; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.ho-add-btn:active { background: #002870; }
+
 /* ── Save Bar ── */
 .save-bar {
   text-align: center; padding: 12px 0 4px;
@@ -204,19 +262,31 @@ body {
         <input class="field-input" type="number" id="performance" placeholder="輸入金額">
       </div>
       <div class="metric-block">
-        <div class="metric-label">Q/T</div>
+        <div class="metric-label-row">
+          <span class="metric-label">Q/T</span>
+          <span class="metric-target-badge" id="qt_target_badge"></span>
+        </div>
         <input class="field-input" type="text" id="qt" placeholder="—">
       </div>
       <div class="metric-block">
-        <div class="metric-label">NPS</div>
+        <div class="metric-label-row">
+          <span class="metric-label">NPS</span>
+          <span class="metric-target-badge" id="nps_target_badge"></span>
+        </div>
         <input class="field-input" type="text" id="nps" placeholder="—">
       </div>
       <div class="metric-block">
-        <div class="metric-label">MTD</div>
+        <div class="metric-label-row">
+          <span class="metric-label">MTD</span>
+          <span class="metric-target-badge" id="mtd_target_badge"></span>
+        </div>
         <input class="field-input" type="text" id="mtd" placeholder="—">
       </div>
       <div class="metric-block">
-        <div class="metric-label">YTD</div>
+        <div class="metric-label-row">
+          <span class="metric-label">YTD</span>
+          <span class="metric-target-badge" id="ytd_target_badge"></span>
+        </div>
         <input class="field-input" type="text" id="ytd" placeholder="—">
       </div>
     </div>
@@ -230,6 +300,27 @@ body {
   <div class="card">
     <div class="card-header"><span class="icon">📝</span>晨會佈達及 Action</div>
     <textarea class="notes-area" id="meetingNotes" placeholder="請輸入晨會佈達內容及待辦事項..."></textarea>
+  </div>
+
+  <!-- 交接 -->
+  <div class="card">
+    <div class="card-header"><span class="icon">📋</span>交接</div>
+
+    <div class="ho-section">
+      <div class="ho-section-title">待辦交接</div>
+      <div id="hoBacklog"><div class="ho-empty">載入中...</div></div>
+    </div>
+
+    <div class="ho-divider"></div>
+
+    <div class="ho-section">
+      <div class="ho-section-title">今日新增</div>
+      <div id="hoToday"></div>
+      <div class="ho-input-row">
+        <input class="ho-input" type="text" id="hoInput" placeholder="輸入交接事項後按 ＋">
+        <button class="ho-add-btn" id="hoAddBtn">+</button>
+      </div>
+    </div>
   </div>
 
   <div class="save-bar" id="saveBar">載入中...</div>
@@ -265,6 +356,25 @@ function fmtKey(d) {
 }
 
 // ── Firebase REST ──
+async function fbPost(path, data) {
+  const res = await fetch(`${FIREBASE_URL}/${path}.json`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('新增失敗');
+  return res.json(); // { name: "-autoId" }
+}
+async function fbPatch(path, data) {
+  await fetch(`${FIREBASE_URL}/${path}.json`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+}
+async function fbDelete(path) {
+  await fetch(`${FIREBASE_URL}/${path}.json`, { method: 'DELETE' });
+}
 async function fbGet(path) {
   const res = await fetch(`${FIREBASE_URL}/${path}.json`);
   if (!res.ok) throw new Error('Firebase 讀取失敗');
@@ -293,6 +403,20 @@ function setStatus(msg, cls) {
   const el = document.getElementById('saveBar');
   el.textContent = msg;
   el.className = 'save-bar ' + (cls || '');
+}
+
+// ── Metric Targets ──
+function updateMetricTargets() {
+  [['qt','qt_target'], ['nps','nps_target'], ['mtd','mtd_target'], ['ytd','ytd_target']].forEach(([key, cfgKey]) => {
+    const badge = document.getElementById(`${key}_target_badge`);
+    const val = config[cfgKey];
+    if (val) {
+      badge.textContent = '目標 ' + val;
+      badge.classList.add('show');
+    } else {
+      badge.classList.remove('show');
+    }
+  });
 }
 
 // ── Achievement ──
@@ -371,6 +495,7 @@ async function loadDay() {
     };
 
     document.getElementById('targetVal').textContent = (config.target || 0).toLocaleString();
+    updateMetricTargets();
     document.getElementById('performance').value = dayData.performance;
     document.getElementById('qt').value = dayData.qt;
     document.getElementById('nps').value = dayData.nps;
@@ -380,6 +505,7 @@ async function loadDay() {
 
     renderTasks();
     updateAchievement();
+    loadHandovers();
     setStatus('已載入', 'saved');
   } catch(e) {
     setStatus('⚠ 載入失敗：' + e.message, 'error');
@@ -415,6 +541,120 @@ async function saveNow() {
     setStatus('⚠ 儲存失敗：' + e.message, 'error');
   }
 }
+
+// ── Handover ──
+let allHandovers = {};
+
+async function loadHandovers() {
+  try {
+    const data = await fbGet('handovers');
+    allHandovers = data || {};
+  } catch {
+    allHandovers = {};
+  }
+  renderHandovers();
+}
+
+function renderHandovers() {
+  const today = fmtKey(curDate);
+  const entries = Object.entries(allHandovers);
+
+  // 待辦：日期 < 今天 且未完成
+  const backlog = entries
+    .filter(([, item]) => item.date < today && !item.done)
+    .sort((a, b) => a[1].date.localeCompare(b[1].date));
+
+  // 今日新增
+  const todayItems = entries
+    .filter(([, item]) => item.date === today)
+    .sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
+
+  // 渲染待辦
+  const backlogEl = document.getElementById('hoBacklog');
+  if (backlog.length === 0) {
+    backlogEl.innerHTML = '<div class="ho-empty">目前無待辦交接 👍</div>';
+  } else {
+    backlogEl.innerHTML = '';
+    backlog.forEach(([id, item]) => {
+      const d = new Date(item.date + 'T00:00:00');
+      const dateStr = `${d.getMonth()+1}/${d.getDate()}`;
+      const div = document.createElement('div');
+      div.className = 'ho-item';
+      div.innerHTML = `
+        <button class="ho-check-btn" data-id="${id}">☐</button>
+        <span class="ho-item-text">${safe(item.text)}</span>
+        <span class="ho-item-date">${dateStr}</span>`;
+      backlogEl.appendChild(div);
+    });
+  }
+
+  // 渲染今日
+  const todayEl = document.getElementById('hoToday');
+  todayEl.innerHTML = '';
+  todayItems.forEach(([id, item]) => {
+    const div = document.createElement('div');
+    div.className = 'ho-item';
+    div.innerHTML = `
+      <span class="ho-item-dot">•</span>
+      <span class="ho-item-text">${safe(item.text)}</span>
+      <button class="ho-del-btn" data-id="${id}" title="刪除">✕</button>`;
+    todayEl.appendChild(div);
+  });
+}
+
+function safe(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function addHandoverItem() {
+  const input = document.getElementById('hoInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  const item = { text, date: fmtKey(curDate), done: false, ts: Date.now() };
+  try {
+    const result = await fbPost('handovers', item);
+    allHandovers[result.name] = item;
+    renderHandovers();
+  } catch(e) {
+    input.value = text; // restore on failure
+  }
+}
+
+document.getElementById('hoBacklog').addEventListener('click', async e => {
+  const btn = e.target.closest('.ho-check-btn');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  btn.textContent = '☑';
+  btn.disabled = true;
+  try {
+    await fbPatch(`handovers/${id}`, { done: true });
+    allHandovers[id].done = true;
+    renderHandovers();
+  } catch {
+    btn.textContent = '☐';
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('hoToday').addEventListener('click', async e => {
+  const btn = e.target.closest('.ho-del-btn');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  btn.disabled = true;
+  try {
+    await fbDelete(`handovers/${id}`);
+    delete allHandovers[id];
+    renderHandovers();
+  } catch {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('hoAddBtn').addEventListener('click', addHandoverItem);
+document.getElementById('hoInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addHandoverItem();
+});
 
 // ── Navigation ──
 async function changeDate(delta) {
