@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>每日報表</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang TC', sans-serif;
+  background: #EEF2F7;
+  min-height: 100vh;
+  color: #1A1A2E;
+}
+
+/* ── Header ── */
+.header {
+  background: linear-gradient(135deg, #003B8E 0%, #0057C8 100%);
+  color: #fff;
+  padding: 14px 16px 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 3px 12px rgba(0,59,142,0.35);
+}
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.header-title { font-size: 17px; font-weight: 700; letter-spacing: 0.3px; }
+.admin-link {
+  color: rgba(255,255,255,0.85);
+  text-decoration: none;
+  font-size: 12px;
+  padding: 5px 12px;
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 20px;
+}
+
+/* ── Date Navigator ── */
+.date-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+.nav-btn {
+  width: 40px; height: 40px;
+  background: rgba(255,255,255,0.18);
+  border: none; color: #fff;
+  border-radius: 50%; font-size: 22px;
+  cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+}
+.nav-btn:active { background: rgba(255,255,255,0.35); }
+.date-center { text-align: center; }
+.date-main { font-size: 26px; font-weight: 800; letter-spacing: 1px; }
+.date-sub { font-size: 12px; opacity: 0.75; margin-top: 2px; }
+.today-btn {
+  display: block; margin: 10px auto 0;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.35);
+  color: #fff; font-size: 12px;
+  padding: 4px 14px; border-radius: 20px; cursor: pointer;
+}
+.today-btn:active { background: rgba(255,255,255,0.3); }
+
+/* ── Main ── */
+.main { padding: 16px; max-width: 600px; margin: 0 auto; padding-bottom: 32px; }
+
+.card {
+  background: #fff; border-radius: 16px;
+  padding: 18px 16px; margin-bottom: 16px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+}
+.card-header {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 700; color: #003B8E;
+  padding-bottom: 14px;
+  border-bottom: 2px solid #EEF2F7;
+  margin-bottom: 16px;
+}
+.card-header .icon { font-size: 18px; }
+
+/* ── Metrics ── */
+.target-row {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  background: #EEF2F7; border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 14px;
+}
+.target-label { font-size: 13px; color: #555; font-weight: 500; }
+.target-value { font-size: 22px; font-weight: 800; color: #003B8E; }
+
+.achievement-bar {
+  display: none; border-radius: 10px;
+  padding: 14px; margin-bottom: 14px;
+}
+.achievement-bar.show { display: flex; align-items: center; gap: 14px; }
+.achievement-bar.green { background: #E8F5E9; }
+.achievement-bar.orange { background: #FFF3E0; }
+.achievement-bar.red { background: #FFEBEE; }
+.ach-pct { font-size: 32px; font-weight: 900; }
+.achievement-bar.green .ach-pct { color: #2E7D32; }
+.achievement-bar.orange .ach-pct { color: #E65100; }
+.achievement-bar.red .ach-pct { color: #C62828; }
+.ach-detail { font-size: 13px; color: #555; line-height: 1.5; }
+
+.metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.metric-block { display: flex; flex-direction: column; gap: 5px; }
+.metric-block.full { grid-column: 1 / -1; }
+.metric-label { font-size: 12px; color: #777; font-weight: 600; letter-spacing: 0.3px; }
+.field-input {
+  width: 100%; padding: 11px 13px;
+  border: 2px solid #E8ECF2; border-radius: 10px;
+  font-size: 17px; font-weight: 600; color: #222;
+  background: #FAFBFD; outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  -webkit-appearance: none;
+}
+.field-input:focus { border-color: #003B8E; background: #fff; }
+
+/* ── Tasks ── */
+.task-item {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 13px 0;
+  border-bottom: 1px solid #F2F4F8; gap: 12px;
+}
+.task-item:last-child { border-bottom: none; padding-bottom: 0; }
+.task-item:first-child { padding-top: 0; }
+.task-name { font-size: 14px; color: #333; line-height: 1.4; flex: 1; }
+.task-btns { display: flex; gap: 8px; flex-shrink: 0; }
+.tbtn {
+  width: 46px; height: 46px; border-radius: 12px;
+  border: 2px solid; font-size: 22px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: #fff; transition: all 0.15s;
+}
+.tbtn:active { transform: scale(0.92); }
+.tbtn-ok { border-color: #4CAF50; color: #4CAF50; }
+.tbtn-ok.on { background: #4CAF50; color: #fff; }
+.tbtn-no { border-color: #EF5350; color: #EF5350; }
+.tbtn-no.on { background: #EF5350; color: #fff; }
+
+/* ── Textarea ── */
+.notes-area {
+  width: 100%; min-height: 130px;
+  padding: 13px; border: 2px solid #E8ECF2;
+  border-radius: 10px; font-size: 15px;
+  line-height: 1.7; color: #333;
+  background: #FAFBFD; resize: vertical;
+  outline: none; font-family: inherit;
+  transition: border-color 0.2s, background 0.2s;
+}
+.notes-area:focus { border-color: #003B8E; background: #fff; }
+.notes-area::placeholder { color: #BBBBBB; }
+
+/* ── Save Bar ── */
+.save-bar {
+  text-align: center; padding: 12px 0 4px;
+  font-size: 13px; color: #AAA; transition: color 0.3s;
+}
+.save-bar.saving { color: #FF9800; }
+.save-bar.saved  { color: #4CAF50; }
+.save-bar.error  { color: #F44336; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-row">
+    <div class="header-title">🏃 迪卡儂每日報表</div>
+    <a href="admin.html" class="admin-link">⚙ 後台設定</a>
+  </div>
+  <div class="date-nav">
+    <button class="nav-btn" id="btnPrev">‹</button>
+    <div class="date-center">
+      <div class="date-main" id="dateMain">--</div>
+      <div class="date-sub" id="dateSub">--</div>
+    </div>
+    <button class="nav-btn" id="btnNext">›</button>
+  </div>
+  <button class="today-btn" id="btnToday">今天</button>
+</div>
+
+<div class="main">
+  <div class="card">
+    <div class="card-header"><span class="icon">📊</span>業績與營運指標</div>
+    <div class="target-row">
+      <div class="target-label">部門目標</div>
+      <div class="target-value" id="targetVal">—</div>
+    </div>
+    <div class="achievement-bar" id="achBar">
+      <div class="ach-pct" id="achPct">0%</div>
+      <div class="ach-detail" id="achDetail"></div>
+    </div>
+    <div class="metrics-grid">
+      <div class="metric-block full">
+        <div class="metric-label">今日業績</div>
+        <input class="field-input" type="number" id="performance" placeholder="輸入金額">
+      </div>
+      <div class="metric-block">
+        <div class="metric-label">Q/T</div>
+        <input class="field-input" type="text" id="qt" placeholder="—">
+      </div>
+      <div class="metric-block">
+        <div class="metric-label">NPS</div>
+        <input class="field-input" type="text" id="nps" placeholder="—">
+      </div>
+      <div class="metric-block">
+        <div class="metric-label">MTD</div>
+        <input class="field-input" type="text" id="mtd" placeholder="—">
+      </div>
+      <div class="metric-block">
+        <div class="metric-label">YTD</div>
+        <input class="field-input" type="text" id="ytd" placeholder="—">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="icon">✅</span>例行事務</div>
+    <div id="taskList"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="icon">📝</span>晨會佈達及 Action</div>
+    <textarea class="notes-area" id="meetingNotes" placeholder="請輸入晨會佈達內容及待辦事項..."></textarea>
+  </div>
+
+  <div class="save-bar" id="saveBar">載入中...</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+const FIREBASE_URL = 'https://c3-daliy-default-rtdb.firebaseio.com';
+const ADMIN_PW     = 'dkt2024';
+// ═══════════════════════════════════════════════════
+
+const TASKS = [
+  '業績填寫（目標 & 達成）',
+  '客訂處理（抓貨 & 過期）',
+  'Cube 清數字（改價 & 盤點已清 & 新鮮度）',
+  '熱區補貨（TG & Box & 18:00後艙補貨）',
+  '維修處理（收單 & 通知 & 報價）',
+  'Facing 狀況'
+];
+const WEEKDAYS = ['日','一','二','三','四','五','六'];
+
+let curDate = todayDate();
+let dayData = {};
+let config = { target: 440000 };
+let saveTimer = null;
+
+function todayDate() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+function fmtKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ── Firebase REST ──
+async function fbGet(path) {
+  const res = await fetch(`${FIREBASE_URL}/${path}.json`);
+  if (!res.ok) throw new Error('Firebase 讀取失敗');
+  return res.json();
+}
+async function fbSet(path, data) {
+  const res = await fetch(`${FIREBASE_URL}/${path}.json`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Firebase 寫入失敗');
+}
+
+// ── Date UI ──
+function updateDateUI() {
+  const m = curDate.getMonth() + 1;
+  const d = curDate.getDate();
+  const wd = WEEKDAYS[curDate.getDay()];
+  const isToday = fmtKey(curDate) === fmtKey(todayDate());
+  document.getElementById('dateMain').textContent = `${m} / ${d}`;
+  document.getElementById('dateSub').textContent = `星期${wd}${isToday ? ' · 今天' : ''}`;
+}
+
+function setStatus(msg, cls) {
+  const el = document.getElementById('saveBar');
+  el.textContent = msg;
+  el.className = 'save-bar ' + (cls || '');
+}
+
+// ── Achievement ──
+function updateAchievement() {
+  const perf = parseFloat(document.getElementById('performance').value) || 0;
+  const goal = config.target || 0;
+  const bar = document.getElementById('achBar');
+  if (!perf || !goal) { bar.className = 'achievement-bar'; return; }
+
+  const pct = (perf / goal) * 100;
+  const diff = perf - goal;
+  document.getElementById('achPct').textContent = pct.toFixed(1) + '%';
+  let cls, detail;
+  if (pct >= 100) {
+    cls = 'green'; detail = `超出目標 ${diff.toLocaleString()} 元 🎉`;
+  } else if (pct >= 80) {
+    cls = 'orange'; detail = `距目標還差 ${Math.abs(diff).toLocaleString()} 元`;
+  } else {
+    cls = 'red'; detail = `距目標還差 ${Math.abs(diff).toLocaleString()} 元`;
+  }
+  document.getElementById('achDetail').textContent = detail;
+  bar.className = `achievement-bar show ${cls}`;
+}
+
+// ── Tasks ──
+function renderTasks() {
+  const states = (dayData.tasks && dayData.tasks.length === TASKS.length)
+    ? dayData.tasks
+    : new Array(TASKS.length).fill(null);
+  dayData.tasks = states;
+
+  const container = document.getElementById('taskList');
+  container.innerHTML = '';
+  TASKS.forEach((name, i) => {
+    const state = states[i];
+    const div = document.createElement('div');
+    div.className = 'task-item';
+    div.innerHTML = `
+      <div class="task-name">${name}</div>
+      <div class="task-btns">
+        <button class="tbtn tbtn-ok ${state === true ? 'on' : ''}" data-idx="${i}" data-val="ok">✓</button>
+        <button class="tbtn tbtn-no ${state === false ? 'on' : ''}" data-idx="${i}" data-val="no">✗</button>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+document.getElementById('taskList').addEventListener('click', e => {
+  const btn = e.target.closest('.tbtn');
+  if (!btn) return;
+  const idx = +btn.dataset.idx;
+  const val = btn.dataset.val === 'ok' ? true : false;
+  dayData.tasks[idx] = dayData.tasks[idx] === val ? null : val;
+  renderTasks();
+  scheduleSave();
+});
+
+// ── Load ──
+async function loadDay() {
+  setStatus('載入中...', '');
+  try {
+    const [rawDay, rawConfig] = await Promise.all([
+      fbGet(`days/${fmtKey(curDate)}`),
+      fbGet('config')
+    ]);
+    config = rawConfig || { target: 440000 };
+    const d = rawDay || {};
+    dayData = {
+      performance: d.performance || '',
+      qt: d.qt || '',
+      nps: d.nps || '',
+      mtd: d.mtd || '',
+      ytd: d.ytd || '',
+      tasks: d.tasks || new Array(TASKS.length).fill(null),
+      notes: d.notes || ''
+    };
+
+    document.getElementById('targetVal').textContent = (config.target || 0).toLocaleString();
+    document.getElementById('performance').value = dayData.performance;
+    document.getElementById('qt').value = dayData.qt;
+    document.getElementById('nps').value = dayData.nps;
+    document.getElementById('mtd').value = dayData.mtd;
+    document.getElementById('ytd').value = dayData.ytd;
+    document.getElementById('meetingNotes').value = dayData.notes;
+
+    renderTasks();
+    updateAchievement();
+    setStatus('已載入', 'saved');
+  } catch(e) {
+    setStatus('⚠ 載入失敗：' + e.message, 'error');
+  }
+}
+
+// ── Save ──
+function collectData() {
+  dayData.performance = document.getElementById('performance').value;
+  dayData.qt = document.getElementById('qt').value;
+  dayData.nps = document.getElementById('nps').value;
+  dayData.mtd = document.getElementById('mtd').value;
+  dayData.ytd = document.getElementById('ytd').value;
+  dayData.notes = document.getElementById('meetingNotes').value;
+}
+
+function scheduleSave() {
+  updateAchievement();
+  setStatus('修改中...', 'saving');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNow, 1200);
+}
+
+async function saveNow() {
+  clearTimeout(saveTimer);
+  collectData();
+  try {
+    await fbSet(`days/${fmtKey(curDate)}`, dayData);
+    const now = new Date();
+    const t = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    setStatus(`已儲存 ✓  ${t}`, 'saved');
+  } catch(e) {
+    setStatus('⚠ 儲存失敗：' + e.message, 'error');
+  }
+}
+
+// ── Navigation ──
+async function changeDate(delta) {
+  await saveNow();
+  curDate = new Date(curDate.getFullYear(), curDate.getMonth(), curDate.getDate() + delta);
+  updateDateUI();
+  loadDay();
+}
+async function goToday() {
+  await saveNow();
+  curDate = todayDate();
+  updateDateUI();
+  loadDay();
+}
+
+// ── Events ──
+document.getElementById('btnPrev').addEventListener('click', () => changeDate(-1));
+document.getElementById('btnNext').addEventListener('click', () => changeDate(1));
+document.getElementById('btnToday').addEventListener('click', goToday);
+['performance','qt','nps','mtd','ytd','meetingNotes'].forEach(id => {
+  document.getElementById(id).addEventListener('input', scheduleSave);
+});
+
+// ── Init ──
+updateDateUI();
+loadDay();
+</script>
+</body>
+</html>
