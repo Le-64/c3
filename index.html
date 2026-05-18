@@ -458,11 +458,22 @@ function updateAchievement() {
   bar.className = `achievement-bar show ${cls}`;
 }
 
+// 將 Firebase 回傳的 tasks（可能是物件或陣列）轉成正確陣列
+function parseTasksFromFirebase(raw) {
+  if (!raw) return new Array(TASKS.length).fill(null);
+  if (Array.isArray(raw) && raw.length === TASKS.length) return raw;
+  // Firebase 把 null 省略後變成 {0: true, 2: false} 的物件，這裡還原回陣列
+  const arr = new Array(TASKS.length).fill(null);
+  Object.entries(raw).forEach(([i, v]) => {
+    const idx = parseInt(i);
+    if (idx >= 0 && idx < TASKS.length) arr[idx] = v;
+  });
+  return arr;
+}
+
 // ── Tasks ──
 function renderTasks() {
-  const states = (dayData.tasks && dayData.tasks.length === TASKS.length)
-    ? dayData.tasks
-    : new Array(TASKS.length).fill(null);
+  const states = Array.isArray(dayData.tasks) ? dayData.tasks : new Array(TASKS.length).fill(null);
   dayData.tasks = states;
 
   const container = document.getElementById('taskList');
@@ -506,7 +517,7 @@ async function loadDay() {
       qt: d.qt || '',
       nps: d.nps || '',
       growth: d.growth || '',
-      tasks: d.tasks || new Array(TASKS.length).fill(null),
+      tasks: parseTasksFromFirebase(d.tasks),
       notes: d.notes || ''
     };
 
