@@ -102,6 +102,41 @@ body {
 .status-msg.ok { color: #4CAF50; }
 .status-msg.err { color: #F44336; }
 
+.task-manage-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 0; border-bottom: 1px solid #F2F4F8;
+}
+.task-manage-item:last-child { border-bottom: none; }
+.task-manage-num {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #EEF2F7; color: #666;
+  font-size: 12px; font-weight: 700; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.task-manage-text { flex: 1; font-size: 14px; color: #333; line-height: 1.4; }
+.task-del-btn {
+  width: 34px; height: 34px; border-radius: 8px;
+  border: 2px solid #E0E0E0; color: #BBB;
+  font-size: 14px; cursor: pointer; background: #fff;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.task-del-btn:active { border-color: #EF5350; color: #EF5350; }
+.task-add-row { display: flex; gap: 8px; margin-top: 14px; }
+.task-add-input {
+  flex: 1; padding: 11px 13px;
+  border: 2px solid #E8ECF2; border-radius: 10px;
+  font-size: 15px; color: #333; background: #FAFBFD;
+  outline: none; font-family: inherit; transition: border-color 0.2s;
+}
+.task-add-input:focus { border-color: #003B8E; background: #fff; }
+.task-add-btn {
+  width: 46px; height: 46px; border-radius: 10px;
+  border: none; background: #003B8E; color: #fff;
+  font-size: 26px; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.task-add-btn:active { background: #002870; }
+
 .info-box {
   background: #E8F0FE; border-radius: 12px;
   padding: 14px 16px; font-size: 13px;
@@ -154,6 +189,18 @@ body {
     <div class="status-msg" id="targetStatus"></div>
   </div>
 
+  <!-- 例行事務管理 -->
+  <div class="card">
+    <div class="card-header">📋 例行事務管理</div>
+    <div id="adminTaskList"><div style="color:#CCC;font-size:13px;text-align:center;padding:10px 0;">載入中...</div></div>
+    <div class="task-add-row">
+      <input class="task-add-input" type="text" id="newTaskInput" placeholder="輸入新增的事務名稱">
+      <button class="task-add-btn" id="addTaskBtn">+</button>
+    </div>
+    <button class="save-btn" id="saveTasksBtn" style="margin-top:14px;">儲存事務清單</button>
+    <div class="status-msg" id="tasksStatus"></div>
+  </div>
+
   <div class="info-box">
     <strong>說明</strong><br>
     Firebase 測試模式 30 天後會限制存取，到期前記得回 Firebase Console 把規則改為：<br>
@@ -167,7 +214,19 @@ body {
 // ═══════════════════════════════════════════
 const FIREBASE_URL = 'https://c3-daliy-default-rtdb.firebaseio.com';
 const ADMIN_PW     = 'dkt2024';
+const DEFAULT_TASKS = [
+  '業績填寫（目標 & 達成）',
+  '客訂處理（抓貨 & 過期）',
+  'Cube 清數字（改價 & 盤點已清 & 新鮮度）',
+  '熱區補貨（TG & Box & 18:00後艙補貨）',
+  '維修處理（收單 & 通知 & 報價）',
+  'Facing 狀況'
+];
 // ═══════════════════════════════════════════
+
+function safe(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 
 // ── Password ──
 function tryLogin() {
@@ -175,6 +234,7 @@ function tryLogin() {
   if (pw === ADMIN_PW) {
     document.getElementById('overlay').classList.add('hidden');
     loadTarget();
+    loadAdminTasks();
   } else {
     document.getElementById('pwError').textContent = '密碼錯誤，請再試一次';
     document.getElementById('pwInput').value = '';
@@ -229,6 +289,74 @@ function showMsg(id, msg, cls) {
   el.className = 'status-msg ' + cls;
   setTimeout(() => { el.textContent = ''; el.className = 'status-msg'; }, 4000);
 }
+
+// ── Admin Tasks ──
+let adminTasks = [];
+
+async function loadAdminTasks() {
+  try {
+    const res = await fetch(`${FIREBASE_URL}/config.json`);
+    const data = await res.json();
+    adminTasks = (data?.tasks && data.tasks.length > 0) ? data.tasks : [...DEFAULT_TASKS];
+  } catch {
+    adminTasks = [...DEFAULT_TASKS];
+  }
+  renderAdminTasks();
+}
+
+function renderAdminTasks() {
+  const container = document.getElementById('adminTaskList');
+  container.innerHTML = '';
+  if (adminTasks.length === 0) {
+    container.innerHTML = '<div style="color:#CCC;font-size:13px;text-align:center;padding:10px 0;">尚無事務</div>';
+    return;
+  }
+  adminTasks.forEach((task, i) => {
+    const div = document.createElement('div');
+    div.className = 'task-manage-item';
+    div.innerHTML = `<span class="task-manage-num">${i + 1}</span><span class="task-manage-text">${safe(task)}</span><button class="task-del-btn" data-idx="${i}">✕</button>`;
+    container.appendChild(div);
+  });
+}
+
+document.getElementById('adminTaskList').addEventListener('click', e => {
+  const btn = e.target.closest('.task-del-btn');
+  if (!btn) return;
+  adminTasks.splice(+btn.dataset.idx, 1);
+  renderAdminTasks();
+});
+
+document.getElementById('addTaskBtn').addEventListener('click', () => {
+  const input = document.getElementById('newTaskInput');
+  const text = input.value.trim();
+  if (!text) return;
+  adminTasks.push(text);
+  input.value = '';
+  renderAdminTasks();
+});
+
+document.getElementById('newTaskInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('addTaskBtn').click();
+});
+
+document.getElementById('saveTasksBtn').addEventListener('click', async () => {
+  document.getElementById('saveTasksBtn').textContent = '儲存中...';
+  document.getElementById('saveTasksBtn').disabled = true;
+  try {
+    const res = await fetch(`${FIREBASE_URL}/config.json`);
+    const current = (await res.json()) || {};
+    await fetch(`${FIREBASE_URL}/config.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...current, tasks: adminTasks })
+    });
+    showMsg('tasksStatus', '✓ 事務清單已更新！', 'ok');
+  } catch {
+    showMsg('tasksStatus', '⚠ 儲存失敗', 'err');
+  }
+  document.getElementById('saveTasksBtn').textContent = '儲存事務清單';
+  document.getElementById('saveTasksBtn').disabled = false;
+});
 </script>
 </body>
 </html>

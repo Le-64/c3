@@ -333,7 +333,7 @@ const FIREBASE_URL = 'https://c3-daliy-default-rtdb.firebaseio.com';
 const ADMIN_PW     = 'dkt2024';
 // ═══════════════════════════════════════════════════
 
-const TASKS = [
+const DEFAULT_TASKS = [
   '業績填寫（目標 & 達成）',
   '客訂處理（抓貨 & 過期）',
   'Cube 清數字（改價 & 盤點已清 & 新鮮度）',
@@ -341,6 +341,7 @@ const TASKS = [
   '維修處理（收單 & 通知 & 報價）',
   'Facing 狀況'
 ];
+let TASKS = [...DEFAULT_TASKS];
 const WEEKDAYS = ['日','一','二','三','四','五','六'];
 
 let curDate = todayDate();
@@ -404,22 +405,6 @@ function setStatus(msg, cls) {
   const el = document.getElementById('saveBar');
   el.textContent = msg;
   el.className = 'save-bar ' + (cls || '');
-}
-
-// ── Config Save (目標) ──
-let configSaveTimer = null;
-function scheduleConfigSave() {
-  updateAchievement();
-  clearTimeout(configSaveTimer);
-  configSaveTimer = setTimeout(async () => {
-    const val = parseFloat(document.getElementById('targetVal').value);
-    if (!val) return;
-    try {
-      const current = await fbGet('config');
-      await fbSet('config', { ...(current || {}), target: val });
-      config.target = val;
-    } catch {}
-  }, 1500);
 }
 
 // ── Metric Targets ──
@@ -510,9 +495,12 @@ async function loadDay() {
       fbGet(`days/${fmtKey(curDate)}`),
       fbGet('config')
     ]);
-    config = rawConfig || { target: 440000 };
+    config = rawConfig || {};
+    // 從後台載入例行事務清單（若無則用預設）
+    TASKS = (config.tasks && config.tasks.length > 0) ? config.tasks : [...DEFAULT_TASKS];
     const d = rawDay || {};
     dayData = {
+      target: d.target ?? null,
       performance: d.performance || '',
       qt: d.qt || '',
       nps: d.nps || '',
@@ -521,7 +509,8 @@ async function loadDay() {
       notes: d.notes || ''
     };
 
-    document.getElementById('targetVal').value = config.target || '';
+    // 目標優先讀當天的，沒有的話用 config 預設
+    document.getElementById('targetVal').value = dayData.target ?? config.target ?? '';
     updateMetricTargets();
     document.getElementById('performance').value = dayData.performance;
     document.getElementById('qt').value = dayData.qt;
@@ -540,6 +529,7 @@ async function loadDay() {
 
 // ── Save ──
 function collectData() {
+  dayData.target = parseFloat(document.getElementById('targetVal').value) || null;
   dayData.performance = document.getElementById('performance').value;
   dayData.qt = document.getElementById('qt').value;
   dayData.nps = document.getElementById('nps').value;
@@ -702,7 +692,7 @@ document.getElementById('btnToday').addEventListener('click', goToday);
 ['performance','qt','nps','growth','meetingNotes'].forEach(id => {
   document.getElementById(id).addEventListener('input', scheduleSave);
 });
-document.getElementById('targetVal').addEventListener('input', scheduleConfigSave);
+document.getElementById('targetVal').addEventListener('input', scheduleSave);
 
 // ── Init ──
 updateDateUI();
