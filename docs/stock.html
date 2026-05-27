@@ -173,14 +173,21 @@ function formatDate(ts) {
 
 // ── 商品資料庫 ──
 async function loadProducts() {
-  const KEY = 'dkt_products_v1';
+  const KEY = 'dkt_products_v2';
+  // 清除舊版快取
+  localStorage.removeItem('dkt_products_v1');
   const cached = localStorage.getItem(KEY);
-  if (cached) { try { products = JSON.parse(cached); return; } catch {} }
+  if (cached) {
+    try {
+      products = JSON.parse(cached);
+      if (Object.keys(products).length > 0) return; // 快取有資料才用
+    } catch {}
+  }
   try {
     const res = await fetch('./products.json');
     if (res.ok) {
       products = await res.json();
-      localStorage.setItem(KEY, JSON.stringify(products));
+      try { localStorage.setItem(KEY, JSON.stringify(products)); } catch {}
     }
   } catch {}
 }
@@ -239,8 +246,13 @@ function renderInventory(filter) {
 document.getElementById('fabBtn').addEventListener('click', () => {
   addQty = 1;
   document.getElementById('addQtyNum').textContent = '1';
-  document.getElementById('addCode').value = '';
-  document.getElementById('addName').value = '';
+  const codeEl = document.getElementById('addCode');
+  const nameEl = document.getElementById('addName');
+  codeEl.value = '';
+  codeEl.style.borderColor = '';
+  nameEl.value = '';
+  nameEl.style.borderColor = '';
+  nameEl.style.background = '';
   document.getElementById('addStatus').className = 'status-msg';
   document.getElementById('addStatus').textContent = '';
   openSheet('addSheet');
@@ -248,10 +260,18 @@ document.getElementById('fabBtn').addEventListener('click', () => {
 
 document.getElementById('addCode').addEventListener('input', e => {
   const code = e.target.value.trim();
+  const nameEl = document.getElementById('addName');
+  const codeEl = e.target;
   if (products[code]) {
-    document.getElementById('addName').value = products[code];
-  } else if (code) {
-    document.getElementById('addName').value = '';
+    nameEl.value = products[code];
+    nameEl.style.borderColor = '#4CAF50';
+    nameEl.style.background = '#F1F8E9';
+    codeEl.style.borderColor = '#4CAF50';
+  } else {
+    nameEl.value = '';
+    nameEl.style.borderColor = '';
+    nameEl.style.background = '';
+    codeEl.style.borderColor = code.length >= 6 ? '#FF9800' : '';
   }
 });
 
