@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>後倉庫存</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC',sans-serif; background:#EEF2F7; min-height:100vh; color:#1A1A2E; }
+
+.header { background:linear-gradient(135deg,#003B8E 0%,#0057C8 100%); color:#fff; padding:16px 20px; display:flex; align-items:center; gap:12px; box-shadow:0 3px 12px rgba(0,59,142,0.35); }
+.back-btn { text-decoration:none; color:rgba(255,255,255,0.85); font-size:24px; line-height:1; padding:4px 8px 4px 0; }
+.header-title { font-size:17px; font-weight:700; flex:1; }
+.header-count { font-size:13px; background:rgba(255,255,255,0.2); padding:3px 10px; border-radius:20px; }
+
+.search-wrap { padding:12px 16px; background:#fff; border-bottom:1px solid #E8ECF2; position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:10px; }
+.search-icon { font-size:16px; flex-shrink:0; }
+.search-input { flex:1; padding:10px 14px; border:2px solid #E8ECF2; border-radius:12px; font-size:15px; background:#FAFBFD; outline:none; -webkit-appearance:none; font-family:inherit; }
+.search-input:focus { border-color:#003B8E; background:#fff; }
+
+.main { padding:12px 16px 100px; max-width:600px; margin:0 auto; }
+
+.item-card { background:#fff; border-radius:14px; padding:12px; margin-bottom:10px; box-shadow:0 2px 8px rgba(0,0,0,0.07); display:flex; align-items:center; gap:12px; cursor:pointer; }
+.item-card:active { opacity:0.85; }
+.item-img-wrap { width:60px; height:60px; border-radius:10px; background:#EEF2F7; flex-shrink:0; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.item-img { width:60px; height:60px; object-fit:contain; }
+.item-img-ph { font-size:28px; }
+.item-info { flex:1; min-width:0; }
+.item-name { font-size:13px; font-weight:600; color:#1A1A2E; line-height:1.4; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.item-code { font-size:12px; color:#AAA; margin-top:3px; font-family:monospace; }
+.item-right { text-align:right; flex-shrink:0; }
+.qty-badge { background:#003B8E; color:#fff; font-size:16px; font-weight:700; min-width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; padding:0 8px; }
+.qty-badge.low { background:#F44336; }
+.item-date { font-size:11px; color:#BBB; margin-top:4px; }
+
+.empty { text-align:center; padding:60px 20px; color:#BBB; font-size:15px; line-height:2; }
+
+.fab { position:fixed; bottom:28px; right:20px; width:56px; height:56px; border-radius:50%; background:#003B8E; color:#fff; border:none; font-size:28px; cursor:pointer; box-shadow:0 4px 16px rgba(0,59,142,0.45); display:flex; align-items:center; justify-content:center; z-index:50; }
+.fab:active { background:#002870; transform:scale(0.95); }
+
+.sheet-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:100; opacity:0; pointer-events:none; transition:opacity 0.25s; }
+.sheet-overlay.show { opacity:1; pointer-events:auto; }
+
+.sheet { position:fixed; bottom:0; left:50%; width:100%; max-width:600px; transform:translateX(-50%) translateY(100%); background:#fff; border-radius:20px 20px 0 0; z-index:101; max-height:92vh; overflow-y:auto; transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); padding-bottom:env(safe-area-inset-bottom,16px); }
+.sheet.show { transform:translateX(-50%) translateY(0); }
+.sheet-handle { width:40px; height:4px; background:#E0E0E0; border-radius:2px; margin:12px auto 0; }
+.sheet-title { font-size:17px; font-weight:700; color:#003B8E; padding:16px 20px 0; }
+.sheet-body { padding:16px 20px 24px; }
+
+.form-label { font-size:13px; font-weight:600; color:#666; margin-bottom:6px; display:block; }
+.form-input { width:100%; padding:12px 14px; border:2px solid #E8ECF2; border-radius:12px; font-size:16px; color:#222; background:#FAFBFD; outline:none; margin-bottom:14px; font-family:inherit; -webkit-appearance:none; }
+.form-input:focus { border-color:#003B8E; background:#fff; }
+.form-input[readonly] { background:#F5F5F5; color:#555; }
+
+.qty-row { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+.qty-btn { width:46px; height:46px; border-radius:10px; border:2px solid #E8ECF2; background:#fff; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-family:inherit; }
+.qty-btn:active { border-color:#003B8E; background:#EEF2F7; }
+.qty-num { flex:1; text-align:center; font-size:26px; font-weight:700; color:#003B8E; }
+
+.save-btn { width:100%; padding:15px; background:#003B8E; color:#fff; border:none; border-radius:12px; font-size:16px; font-weight:700; cursor:pointer; font-family:inherit; }
+.save-btn:active { background:#002870; }
+.save-btn:disabled { background:#AAA; }
+
+.status-msg { text-align:center; font-size:13px; margin-top:10px; min-height:20px; }
+.status-msg.ok { color:#4CAF50; }
+.status-msg.err { color:#F44336; }
+
+.detail-img-wrap { text-align:center; margin-bottom:14px; background:#EEF2F7; border-radius:14px; padding:16px; }
+.detail-img { max-width:100px; max-height:100px; object-fit:contain; }
+.detail-name { font-size:15px; font-weight:700; color:#1A1A2E; text-align:center; margin-bottom:4px; line-height:1.4; }
+.detail-code { font-size:13px; color:#AAA; text-align:center; font-family:monospace; margin-bottom:20px; }
+.detail-qty-label { font-size:13px; font-weight:600; color:#666; text-align:center; margin-bottom:10px; }
+.detail-qty-row { display:flex; align-items:center; justify-content:center; gap:16px; margin-bottom:22px; }
+.detail-qty-btn { width:52px; height:52px; border-radius:12px; border:2px solid #E8ECF2; background:#fff; font-size:28px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-family:inherit; }
+.detail-qty-btn:active { border-color:#003B8E; background:#EEF2F7; }
+.detail-qty-num { font-size:40px; font-weight:700; color:#003B8E; min-width:70px; text-align:center; }
+.detail-action-row { display:flex; gap:10px; }
+.detail-save-btn { flex:1; padding:14px; background:#003B8E; color:#fff; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit; }
+.detail-save-btn:disabled { background:#AAA; }
+.detail-del-btn { padding:14px 18px; background:#FFF0F0; color:#EF5350; border:2px solid #FFCDD2; border-radius:12px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; transition:background 0.15s,color 0.15s,border-color 0.15s; }
+.detail-del-btn.confirm { background:#EF5350; color:#fff; border-color:#EF5350; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html" class="back-btn">‹</a>
+  <div class="header-title">📦 後倉庫存</div>
+  <div class="header-count" id="headerCount">─</div>
+</div>
+
+<div class="search-wrap">
+  <span class="search-icon">🔍</span>
+  <input class="search-input" type="search" id="searchInput" placeholder="搜尋 Model Code 或商品名稱">
+</div>
+
+<div class="main">
+  <div id="inventoryList"><div class="empty">載入中…</div></div>
+</div>
+
+<button class="fab" id="fabBtn" title="新增商品">＋</button>
+
+<div class="sheet-overlay" id="sheetOverlay"></div>
+
+<!-- 新增 sheet -->
+<div class="sheet" id="addSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">新增後倉商品</div>
+  <div class="sheet-body">
+    <label class="form-label">Model Code</label>
+    <input class="form-input" type="text" id="addCode" placeholder="輸入 Model Code" inputmode="numeric" autocomplete="off">
+    <label class="form-label">商品名稱</label>
+    <input class="form-input" type="text" id="addName" placeholder="輸入 Model Code 後自動帶入">
+    <label class="form-label">入庫數量</label>
+    <div class="qty-row">
+      <button class="qty-btn" id="addQtyMinus">－</button>
+      <div class="qty-num" id="addQtyNum">1</div>
+      <button class="qty-btn" id="addQtyPlus">＋</button>
+    </div>
+    <button class="save-btn" id="addSaveBtn">儲存入庫</button>
+    <div class="status-msg" id="addStatus"></div>
+  </div>
+</div>
+
+<!-- 詳情 sheet -->
+<div class="sheet" id="detailSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">後倉詳情</div>
+  <div class="sheet-body">
+    <div class="detail-img-wrap" id="detailImgWrap">
+      <img class="detail-img" id="detailImg" src="" onerror="this.style.display='none'" alt="">
+    </div>
+    <div class="detail-name" id="detailName"></div>
+    <div class="detail-code" id="detailCode"></div>
+    <div class="detail-qty-label">現有庫存數量</div>
+    <div class="detail-qty-row">
+      <button class="detail-qty-btn" id="detailMinus">－</button>
+      <div class="detail-qty-num" id="detailQtyNum">0</div>
+      <button class="detail-qty-btn" id="detailPlus">＋</button>
+    </div>
+    <div class="detail-action-row">
+      <button class="detail-save-btn" id="detailSave">儲存</button>
+      <button class="detail-del-btn" id="detailDel">移除</button>
+    </div>
+    <div class="status-msg" id="detailStatus"></div>
+  </div>
+</div>
+
+<script>
+const FIREBASE_URL = 'https://c3-daliy-default-rtdb.firebaseio.com';
+
+let products = {};
+let inventory = {};
+let addQty = 1;
+let detailCode = null;
+let detailQty = 0;
+let deleteConfirmed = false;
+let deleteTimer = null;
+
+function safe(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function imgUrl(code) {
+  return `https://product-picture.decathlon.cn/model/${code}.jpg?f=100`;
+}
+
+function formatDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+// ── 商品資料庫 ──
+async function loadProducts() {
+  const KEY = 'dkt_products_v1';
+  const cached = localStorage.getItem(KEY);
+  if (cached) { try { products = JSON.parse(cached); return; } catch {} }
+  try {
+    const res = await fetch('./products.json');
+    if (res.ok) {
+      products = await res.json();
+      localStorage.setItem(KEY, JSON.stringify(products));
+    }
+  } catch {}
+}
+
+// ── Firebase 庫存 ──
+async function loadInventory() {
+  try {
+    const res = await fetch(`${FIREBASE_URL}/stock.json`);
+    inventory = (await res.json()) || {};
+  } catch { inventory = {}; }
+  renderInventory();
+}
+
+function renderInventory(filter) {
+  const q = (filter || '').toLowerCase().trim();
+  let items = Object.entries(inventory);
+  if (q) {
+    items = items.filter(([code, item]) =>
+      code.includes(q) || (item.name || '').toLowerCase().includes(q)
+    );
+  }
+  items.sort((a, b) => (b[1].ts || 0) - (a[1].ts || 0));
+
+  const total = Object.keys(inventory).length;
+  document.getElementById('headerCount').textContent = total > 0 ? `共 ${total} 項` : '─';
+
+  const container = document.getElementById('inventoryList');
+  if (items.length === 0) {
+    container.innerHTML = `<div class="empty">${q ? '查無符合商品' : '後倉目前無庫存紀錄<br>點右下角 ＋ 新增商品'}</div>`;
+    return;
+  }
+
+  container.innerHTML = '';
+  items.forEach(([code, item]) => {
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.innerHTML = `
+      <div class="item-img-wrap">
+        <img class="item-img" src="${imgUrl(code)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
+        <div class="item-img-ph" style="display:none">📦</div>
+      </div>
+      <div class="item-info">
+        <div class="item-name">${safe(item.name || code)}</div>
+        <div class="item-code"># ${safe(code)}</div>
+      </div>
+      <div class="item-right">
+        <div class="qty-badge${item.qty <= 1 ? ' low' : ''}">${item.qty}</div>
+        <div class="item-date">${formatDate(item.ts)}</div>
+      </div>`;
+    card.addEventListener('click', () => openDetail(code, item));
+    container.appendChild(card);
+  });
+}
+
+// ── 新增商品 ──
+document.getElementById('fabBtn').addEventListener('click', () => {
+  addQty = 1;
+  document.getElementById('addQtyNum').textContent = '1';
+  document.getElementById('addCode').value = '';
+  document.getElementById('addName').value = '';
+  document.getElementById('addStatus').className = 'status-msg';
+  document.getElementById('addStatus').textContent = '';
+  openSheet('addSheet');
+});
+
+document.getElementById('addCode').addEventListener('input', e => {
+  const code = e.target.value.trim();
+  if (products[code]) {
+    document.getElementById('addName').value = products[code];
+  } else if (code) {
+    document.getElementById('addName').value = '';
+  }
+});
+
+document.getElementById('addQtyMinus').addEventListener('click', () => {
+  if (addQty > 1) { addQty--; document.getElementById('addQtyNum').textContent = addQty; }
+});
+document.getElementById('addQtyPlus').addEventListener('click', () => {
+  addQty++; document.getElementById('addQtyNum').textContent = addQty;
+});
+
+document.getElementById('addSaveBtn').addEventListener('click', async () => {
+  const code = document.getElementById('addCode').value.trim();
+  const name = document.getElementById('addName').value.trim() || (products[code] || code);
+  if (!code) { showMsg('addStatus', '請先輸入 Model Code', 'err'); return; }
+
+  const btn = document.getElementById('addSaveBtn');
+  btn.disabled = true;
+  btn.textContent = '儲存中…';
+
+  try {
+    const existing = inventory[code];
+    const newQty = existing ? existing.qty + addQty : addQty;
+    const payload = { name, qty: newQty, ts: Date.now() };
+    await fetch(`${FIREBASE_URL}/stock/${code}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    inventory[code] = payload;
+    renderInventory(document.getElementById('searchInput').value);
+    showMsg('addStatus', existing ? `✓ 已累加，目前共 ${newQty} 件` : '✓ 已入庫！', 'ok');
+    setTimeout(() => closeSheet('addSheet'), 1400);
+  } catch {
+    showMsg('addStatus', '⚠ 儲存失敗，請確認網路', 'err');
+  }
+  btn.disabled = false;
+  btn.textContent = '儲存入庫';
+});
+
+// ── 詳情 sheet ──
+function openDetail(code, item) {
+  detailCode = code;
+  detailQty = item.qty;
+  deleteConfirmed = false;
+  clearTimeout(deleteTimer);
+  const delBtn = document.getElementById('detailDel');
+  delBtn.textContent = '移除';
+  delBtn.classList.remove('confirm');
+
+  const img = document.getElementById('detailImg');
+  img.style.display = '';
+  img.src = imgUrl(code);
+  document.getElementById('detailName').textContent = item.name || code;
+  document.getElementById('detailCode').textContent = `# ${code}`;
+  document.getElementById('detailQtyNum').textContent = detailQty;
+  document.getElementById('detailStatus').textContent = '';
+  document.getElementById('detailStatus').className = 'status-msg';
+  openSheet('detailSheet');
+}
+
+document.getElementById('detailMinus').addEventListener('click', () => {
+  if (detailQty > 0) { detailQty--; document.getElementById('detailQtyNum').textContent = detailQty; }
+});
+document.getElementById('detailPlus').addEventListener('click', () => {
+  detailQty++; document.getElementById('detailQtyNum').textContent = detailQty;
+});
+
+document.getElementById('detailSave').addEventListener('click', async () => {
+  const btn = document.getElementById('detailSave');
+  btn.disabled = true;
+  try {
+    await fetch(`${FIREBASE_URL}/stock/${detailCode}/qty.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(detailQty)
+    });
+    inventory[detailCode].qty = detailQty;
+    renderInventory(document.getElementById('searchInput').value);
+    showMsg('detailStatus', '✓ 已更新！', 'ok');
+    setTimeout(() => closeSheet('detailSheet'), 1000);
+  } catch { showMsg('detailStatus', '⚠ 更新失敗', 'err'); }
+  btn.disabled = false;
+});
+
+document.getElementById('detailDel').addEventListener('click', async () => {
+  const btn = document.getElementById('detailDel');
+  if (!deleteConfirmed) {
+    deleteConfirmed = true;
+    btn.textContent = '確認移除？';
+    btn.classList.add('confirm');
+    deleteTimer = setTimeout(() => {
+      deleteConfirmed = false;
+      btn.textContent = '移除';
+      btn.classList.remove('confirm');
+    }, 3000);
+    return;
+  }
+  clearTimeout(deleteTimer);
+  try {
+    await fetch(`${FIREBASE_URL}/stock/${detailCode}.json`, { method: 'DELETE' });
+    delete inventory[detailCode];
+    renderInventory(document.getElementById('searchInput').value);
+    closeSheet('detailSheet');
+  } catch { showMsg('detailStatus', '⚠ 刪除失敗', 'err'); }
+});
+
+// ── Sheet 控制 ──
+function openSheet(id) {
+  document.getElementById('sheetOverlay').classList.add('show');
+  document.getElementById(id).classList.add('show');
+}
+
+function closeSheet(id) {
+  document.getElementById(id).classList.remove('show');
+  if (!document.querySelector('.sheet.show')) {
+    document.getElementById('sheetOverlay').classList.remove('show');
+  }
+}
+
+document.getElementById('sheetOverlay').addEventListener('click', () => {
+  document.querySelectorAll('.sheet.show').forEach(s => closeSheet(s.id));
+});
+
+// ── 搜尋 ──
+let searchTimer;
+document.getElementById('searchInput').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => renderInventory(e.target.value), 200);
+});
+
+function showMsg(id, msg, cls) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status-msg ' + cls;
+  setTimeout(() => { el.textContent = ''; el.className = 'status-msg'; }, 3500);
+}
+
+// ── 初始化 ──
+Promise.all([loadProducts(), loadInventory()]);
+</script>
+</body>
+</html>
