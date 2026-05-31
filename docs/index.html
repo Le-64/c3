@@ -347,7 +347,7 @@ body {
 #txtPinLabel {
   background: rgba(255,255,255,0.9); padding: 4px 10px;
   border-radius: 6px; font-weight: bold; white-space: nowrap;
-  border: 2px dashed #0057C8; pointer-events: none;
+  border: 2px dashed #0057C8;
 }
 #txtPinOk {
   display: block; width: 100%; margin-top: 4px;
@@ -1170,12 +1170,13 @@ document.addEventListener('mouseup', () => { txtPinMouseDragging = false; });
 
 function commitTextPin() {
   if (!pendingText) return;
+  const pin = document.getElementById('txtPin');
+  const pinRect = pin.getBoundingClientRect();
   const canvasRect = aCanvas.getBoundingClientRect();
-  const wrapRect = document.getElementById('annotatorWrap').getBoundingClientRect();
   const scaleX = aCanvas.width / canvasRect.width;
   const scaleY = aCanvas.height / canvasRect.height;
-  const cx = (parseFloat(txtPin.style.left) - (canvasRect.left - wrapRect.left)) * scaleX;
-  const cy = (parseFloat(txtPin.style.top)  - (canvasRect.top  - wrapRect.top))  * scaleY + pendingFontSize;
+  const cx = (pinRect.left - canvasRect.left) * scaleX;
+  const cy = (pinRect.top  - canvasRect.top)  * scaleY + pendingFontSize;
   const ctx = aCanvas.getContext('2d');
   ctx.font = `bold ${pendingFontSize}px sans-serif`;
   const metrics = ctx.measureText(pendingText);
