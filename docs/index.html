@@ -1140,12 +1140,14 @@ document.querySelectorAll('.a-size-btn').forEach(btn => {
 // ── Text Pin Drag ──
 const txtPin = document.getElementById('txtPin');
 txtPin.addEventListener('touchstart', e => {
+  if (e.target.closest('#txtPinOk')) return; // 讓按鈕自己處理
   e.preventDefault(); e.stopPropagation();
   const t = e.touches[0];
   const r = txtPin.getBoundingClientRect();
   txtPinDragOffset = { x: t.clientX - r.left, y: t.clientY - r.top };
 }, { passive: false });
 txtPin.addEventListener('touchmove', e => {
+  if (e.target.closest('#txtPinOk')) return;
   e.preventDefault(); e.stopPropagation();
   const t = e.touches[0];
   const wr = document.getElementById('annotatorWrap').getBoundingClientRect();
@@ -1153,6 +1155,7 @@ txtPin.addEventListener('touchmove', e => {
   txtPin.style.top  = (t.clientY - wr.top  - txtPinDragOffset.y) + 'px';
 }, { passive: false });
 txtPin.addEventListener('mousedown', e => {
+  if (e.target.closest('#txtPinOk')) return;
   e.stopPropagation(); txtPinMouseDragging = true;
   const r = txtPin.getBoundingClientRect();
   txtPinDragOffset = { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -1165,8 +1168,7 @@ document.addEventListener('mousemove', e => {
 });
 document.addEventListener('mouseup', () => { txtPinMouseDragging = false; });
 
-document.getElementById('txtPinOk').addEventListener('click', e => {
-  e.stopPropagation();
+function commitTextPin() {
   if (!pendingText) return;
   const canvasRect = aCanvas.getBoundingClientRect();
   const wrapRect = document.getElementById('annotatorWrap').getBoundingClientRect();
@@ -1188,7 +1190,11 @@ document.getElementById('txtPinOk').addEventListener('click', e => {
   if (annotatorHistory.length > 20) annotatorHistory.shift();
   txtPin.style.display = 'none';
   pendingText = null;
-});
+}
+
+const txtPinOk = document.getElementById('txtPinOk');
+txtPinOk.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); commitTextPin(); });
+txtPinOk.addEventListener('click', e => { e.stopPropagation(); commitTextPin(); });
 
 document.getElementById('aUndo').addEventListener('click', () => {
   if (annotatorHistory.length <= 1) return;
