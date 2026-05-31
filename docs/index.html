@@ -337,8 +337,24 @@ body {
 .annotator-canvas-wrap {
   flex: 1; display: flex; align-items: center;
   justify-content: center; overflow: hidden;
+  position: relative;
 }
 #annotatorCanvas { touch-action: none; display: block; cursor: crosshair; }
+#txtPin {
+  position: absolute; display: none; cursor: move;
+  touch-action: none; user-select: none;
+}
+#txtPinLabel {
+  background: rgba(255,255,255,0.9); padding: 4px 10px;
+  border-radius: 6px; font-weight: bold; white-space: nowrap;
+  border: 2px dashed #0057C8; pointer-events: none;
+}
+#txtPinOk {
+  display: block; width: 100%; margin-top: 4px;
+  background: #003B8E; color: #fff; border: none;
+  border-radius: 6px; padding: 6px; font-size: 13px;
+  cursor: pointer; touch-action: manipulation; font-family: inherit;
+}
 </style>
 </head>
 <body>
@@ -464,6 +480,10 @@ body {
   </div>
   <div class="annotator-canvas-wrap" id="annotatorWrap">
     <canvas id="annotatorCanvas"></canvas>
+    <div id="txtPin">
+      <div id="txtPinLabel"></div>
+      <button id="txtPinOk">✓ 放這裡</button>
+    </div>
   </div>
 </div>
 
@@ -974,6 +994,10 @@ let annotatorHistory = [];
 let annotatorTool = 'pen';
 let annotatorColor = '#EF5350';
 let annotatorTextSize = 'medium';
+let pendingText = null;
+let pendingFontSize = 24;
+let txtPinDragOffset = { x: 0, y: 0 };
+let txtPinMouseDragging = false;
 let annotatorDrawing = false;
 let annotatorStart = { x: 0, y: 0 };
 let annotatorLastPos = { x: 0, y: 0 };
@@ -1043,21 +1067,20 @@ function onADrawStart(e) {
     const text = prompt('輸入文字：');
     if (!text) return;
     const sizeMap = { small: 0.035, medium: 0.055, large: 0.08 };
-    const fontSize = Math.round(aCanvas.width * (sizeMap[annotatorTextSize] || 0.055));
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    const metrics = ctx.measureText(text);
-    const pad = Math.round(fontSize * 0.25);
-    const bx = pos.x - pad;
-    const by = pos.y - fontSize - pad;
-    const bw = metrics.width + pad * 2;
-    const bh = fontSize + pad * 2;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.beginPath();
-    ctx.roundRect ? ctx.roundRect(bx, by, bw, bh, 4) : ctx.rect(bx, by, bw, bh);
-    ctx.fill();
-    ctx.fillStyle = annotatorColor;
-    ctx.fillText(text, pos.x, pos.y);
-    annotatorHistory.push(ctx.getImageData(0, 0, aCanvas.width, aCanvas.height));
+    pendingFontSize = Math.round(aCanvas.width * (sizeMap[annotatorTextSize] || 0.055));
+    pendingText = text;
+    const wrap = document.getElementById('annotatorWrap');
+    const wrapRect = wrap.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    const pin = document.getElementById('txtPin');
+    const label = document.getElementById('txtPinLabel');
+    label.textContent = text;
+    label.style.color = annotatorColor;
+    const displaySize = Math.round(pendingFontSize * wrapRect.width / aCanvas.width);
+    label.style.fontSize = Math.max(12, displaySize) + 'px';
+    pin.style.left = (src.clientX - wrapRect.left) + 'px';
+    pin.style.top = (src.clientY - wrapRect.top) + 'px';
+    pin.style.display = '';
     return;
   }
   annotatorDrawing = true;
@@ -1114,6 +1137,59 @@ document.querySelectorAll('.a-size-btn').forEach(btn => {
     annotatorTextSize = btn.dataset.size;
   });
 });
+// ── Text Pin Drag ──
+const txtPin = document.getElementById('txtPin');
+txtPin.addEventListener('touchstart', e => {
+  e.preventDefault(); e.stopPropagation();
+  const t = e.touches[0];
+  const r = txtPin.getBoundingClientRect();
+  txtPinDragOffset = { x: t.clientX - r.left, y: t.clientY - r.top };
+}, { passive: false });
+txtPin.addEventListener('touchmove', e => {
+  e.preventDefault(); e.stopPropagation();
+  const t = e.touches[0];
+  const wr = document.getElementById('annotatorWrap').getBoundingClientRect();
+  txtPin.style.left = (t.clientX - wr.left - txtPinDragOffset.x) + 'px';
+  txtPin.style.top  = (t.clientY - wr.top  - txtPinDragOffset.y) + 'px';
+}, { passive: false });
+txtPin.addEventListener('mousedown', e => {
+  e.stopPropagation(); txtPinMouseDragging = true;
+  const r = txtPin.getBoundingClientRect();
+  txtPinDragOffset = { x: e.clientX - r.left, y: e.clientY - r.top };
+});
+document.addEventListener('mousemove', e => {
+  if (!txtPinMouseDragging) return;
+  const wr = document.getElementById('annotatorWrap').getBoundingClientRect();
+  txtPin.style.left = (e.clientX - wr.left - txtPinDragOffset.x) + 'px';
+  txtPin.style.top  = (e.clientY - wr.top  - txtPinDragOffset.y) + 'px';
+});
+document.addEventListener('mouseup', () => { txtPinMouseDragging = false; });
+
+document.getElementById('txtPinOk').addEventListener('click', e => {
+  e.stopPropagation();
+  if (!pendingText) return;
+  const canvasRect = aCanvas.getBoundingClientRect();
+  const wrapRect = document.getElementById('annotatorWrap').getBoundingClientRect();
+  const scaleX = aCanvas.width / canvasRect.width;
+  const scaleY = aCanvas.height / canvasRect.height;
+  const cx = (parseFloat(txtPin.style.left) - (canvasRect.left - wrapRect.left)) * scaleX;
+  const cy = (parseFloat(txtPin.style.top)  - (canvasRect.top  - wrapRect.top))  * scaleY + pendingFontSize;
+  const ctx = aCanvas.getContext('2d');
+  ctx.font = `bold ${pendingFontSize}px sans-serif`;
+  const metrics = ctx.measureText(pendingText);
+  const pad = Math.round(pendingFontSize * 0.25);
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath();
+  ctx.roundRect ? ctx.roundRect(cx - pad, cy - pendingFontSize - pad, metrics.width + pad * 2, pendingFontSize + pad * 2, 4) : ctx.rect(cx - pad, cy - pendingFontSize - pad, metrics.width + pad * 2, pendingFontSize + pad * 2);
+  ctx.fill();
+  ctx.fillStyle = annotatorColor;
+  ctx.fillText(pendingText, cx, cy);
+  annotatorHistory.push(ctx.getImageData(0, 0, aCanvas.width, aCanvas.height));
+  if (annotatorHistory.length > 20) annotatorHistory.shift();
+  txtPin.style.display = 'none';
+  pendingText = null;
+});
+
 document.getElementById('aUndo').addEventListener('click', () => {
   if (annotatorHistory.length <= 1) return;
   annotatorHistory.pop();
@@ -1121,9 +1197,12 @@ document.getElementById('aUndo').addEventListener('click', () => {
 });
 document.getElementById('aCancel').addEventListener('click', () => {
   document.getElementById('annotatorOverlay').classList.remove('show');
-  annotatorCallback = null;
+  document.getElementById('txtPin').style.display = 'none';
+  pendingText = null; annotatorCallback = null;
 });
 document.getElementById('aSave').addEventListener('click', () => {
+  document.getElementById('txtPin').style.display = 'none';
+  pendingText = null;
   const result = aCanvas.toDataURL('image/jpeg', 0.85);
   if (annotatorCallback) annotatorCallback(result);
   document.getElementById('annotatorOverlay').classList.remove('show');
