@@ -307,6 +307,7 @@ body {
 .annotator-overlay {
   position: fixed; inset: 0; background: #111;
   z-index: 300; flex-direction: column; display: none;
+  touch-action: none; user-select: none;
 }
 .annotator-overlay.show { display: flex; }
 .annotator-toolbar {
@@ -321,8 +322,11 @@ body {
   background: rgba(255,255,255,0.08); color: #fff;
   font-size: 12px; cursor: pointer; white-space: nowrap;
   font-family: inherit; flex-shrink: 0;
+  touch-action: manipulation;
 }
 .a-tool.on { background: #0057C8; border-color: #0057C8; }
+.a-size-btn { opacity: 0.5; }
+.a-size-btn.on { opacity: 1; background: #0057C8; border-color: #0057C8; }
 .a-tool-save { background: #2E7D32; border-color: #2E7D32; margin-left: auto; }
 .a-tool-cancel { background: #333; border-color: #333; }
 .a-color-dot {
@@ -422,7 +426,7 @@ body {
       <div id="hoToday"></div>
       <div class="ho-input-row">
         <input class="ho-input" type="text" id="hoInput" placeholder="輸入交接事項後按 ＋">
-        <input type="file" id="hoImgFile" accept="image/*" capture="environment" style="display:none">
+        <input type="file" id="hoImgFile" accept="image/*" style="display:none">
         <button class="ho-cam-btn" id="hoCamBtn" title="上傳圖片">📷</button>
         <button class="ho-add-btn" id="hoAddBtn">+</button>
       </div>
@@ -439,7 +443,7 @@ body {
   <div class="save-bar" id="saveBar">載入中...</div>
 </div>
 
-<input type="file" id="editImgFile" accept="image/*" capture="environment" style="display:none">
+<input type="file" id="editImgFile" accept="image/*" style="display:none">
 
 <!-- 標註編輯器 -->
 <div class="annotator-overlay" id="annotatorOverlay">
@@ -447,6 +451,9 @@ body {
     <button class="a-tool on" data-tool="pen">✏️ 畫筆</button>
     <button class="a-tool" data-tool="circle">⭕ 圓圈</button>
     <button class="a-tool" data-tool="text">🔤 文字</button>
+    <button class="a-tool a-size-btn on" data-size="medium">中</button>
+    <button class="a-tool a-size-btn" data-size="small">小</button>
+    <button class="a-tool a-size-btn" data-size="large">大</button>
     <div class="a-color-dot on" data-color="#EF5350" style="background:#EF5350"></div>
     <div class="a-color-dot" data-color="#2196F3" style="background:#2196F3"></div>
     <div class="a-color-dot" data-color="#4CAF50" style="background:#4CAF50"></div>
@@ -966,6 +973,7 @@ let annotatorCallback = null;
 let annotatorHistory = [];
 let annotatorTool = 'pen';
 let annotatorColor = '#EF5350';
+let annotatorTextSize = 'medium';
 let annotatorDrawing = false;
 let annotatorStart = { x: 0, y: 0 };
 let annotatorLastPos = { x: 0, y: 0 };
@@ -994,6 +1002,9 @@ function openAnnotator(imgSrc, callback) {
   document.querySelector('.a-tool[data-tool="pen"]').classList.add('on');
   document.querySelectorAll('.a-color-dot').forEach(d => d.classList.remove('on'));
   document.querySelector('.a-color-dot[data-color="#EF5350"]').classList.add('on');
+  document.querySelectorAll('.a-size-btn').forEach(b => b.classList.remove('on'));
+  document.querySelector('.a-size-btn[data-size="medium"]').classList.add('on');
+  annotatorTextSize = 'medium';
 }
 
 function getCanvasPos(canvas, e) {
@@ -1031,8 +1042,20 @@ function onADrawStart(e) {
   if (annotatorTool === 'text') {
     const text = prompt('輸入文字：');
     if (!text) return;
-    setupDrawStyle(ctx);
-    ctx.font = `bold ${Math.max(18, Math.round(aCanvas.width * 0.05))}px sans-serif`;
+    const sizeMap = { small: 0.035, medium: 0.055, large: 0.08 };
+    const fontSize = Math.round(aCanvas.width * (sizeMap[annotatorTextSize] || 0.055));
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    const metrics = ctx.measureText(text);
+    const pad = Math.round(fontSize * 0.25);
+    const bx = pos.x - pad;
+    const by = pos.y - fontSize - pad;
+    const bw = metrics.width + pad * 2;
+    const bh = fontSize + pad * 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(bx, by, bw, bh, 4) : ctx.rect(bx, by, bw, bh);
+    ctx.fill();
+    ctx.fillStyle = annotatorColor;
     ctx.fillText(text, pos.x, pos.y);
     annotatorHistory.push(ctx.getImageData(0, 0, aCanvas.width, aCanvas.height));
     return;
@@ -1082,6 +1105,13 @@ document.querySelectorAll('.a-color-dot').forEach(dot => {
     document.querySelectorAll('.a-color-dot').forEach(d => d.classList.remove('on'));
     dot.classList.add('on');
     annotatorColor = dot.dataset.color;
+  });
+});
+document.querySelectorAll('.a-size-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.a-size-btn').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    annotatorTextSize = btn.dataset.size;
   });
 });
 document.getElementById('aUndo').addEventListener('click', () => {
