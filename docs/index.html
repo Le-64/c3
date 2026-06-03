@@ -148,7 +148,6 @@ body {
 .monthly-row {
   display: flex; align-items: center;
   justify-content: space-between;
-  font-size: 13px; font-weight: 600; color: #003B8E;
   margin-bottom: 4px;
 }
 .monthly-label { color: #5A6A8A; font-weight: 600; font-size: 12px; }
@@ -422,7 +421,7 @@ body {
     </div>
     <div class="monthly-summary" id="monthlySummary" style="display:none">
       <div class="monthly-row">
-        <span class="monthly-label">本月累計 TO</span>
+        <span class="monthly-label">本月累積 TO</span>
         <span class="monthly-actual" id="monthlyActualVal">—</span>
       </div>
       <div class="monthly-gap-text" id="monthlyGapText"></div>
@@ -640,30 +639,33 @@ async function loadMonthlyData() {
 
   const y = curDate.getFullYear();
   const mo = curDate.getMonth() + 1;
-  const start = `${y}-${String(mo).padStart(2,'0')}-01`;
-  const end   = `${y}-${String(mo).padStart(2,'0')}-31`;
-  const params = new URLSearchParams({ orderByKey: 'true', startAt: `"${start}"`, endAt: `"${end}"` });
+  const prefix = `${y}-${String(mo).padStart(2,'0')}`;
 
   try {
-    const res = await fetch(`${FIREBASE_URL}/days.json?${params}`);
-    const data = await res.json();
+    const res = await fetch(`${FIREBASE_URL}/days.json`);
+    const allDays = await res.json();
     let mtd = 0;
-    if (data) Object.values(data).forEach(d => { const p = parseFloat(d.performance); if (p > 0) mtd += p; });
+    if (allDays) {
+      Object.entries(allDays).forEach(([key, d]) => {
+        if (!key.startsWith(prefix)) return;
+        const p = parseFloat(d.performance);
+        if (p > 0) mtd += p;
+      });
+    }
 
     const gap = target - mtd;
     const daysInMonth = new Date(y, mo, 0).getDate();
     const daysLeft = daysInMonth - curDate.getDate();
 
     document.getElementById('monthlySummary').style.display = '';
-    document.getElementById('monthlyActualVal').textContent =
-      `${Math.round(mtd).toLocaleString()} / ${Math.round(target).toLocaleString()}`;
+    document.getElementById('monthlyActualVal').textContent = Math.round(mtd).toLocaleString();
 
     const gapEl = document.getElementById('monthlyGapText');
     if (gap <= 0) {
-      gapEl.textContent = `已達成月目標！超出 ${Math.abs(Math.round(gap)).toLocaleString()} 🎉`;
+      gapEl.textContent = `已超出月目標 ${Math.abs(Math.round(gap)).toLocaleString()} 🎉`;
       gapEl.className = 'monthly-gap-text done';
     } else {
-      gapEl.textContent = `距月目標還差 ${Math.round(gap).toLocaleString()}（剩 ${daysLeft} 天）`;
+      gapEl.textContent = `月目標 ${Math.round(target).toLocaleString()}，還差 ${Math.round(gap).toLocaleString()}（剩 ${daysLeft} 天）`;
       gapEl.className = 'monthly-gap-text' + (gap < target * 0.15 ? ' close' : '');
     }
   } catch {}
