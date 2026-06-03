@@ -55,7 +55,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC',san
 .qty-row { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
 .qty-btn { width:46px; height:46px; border-radius:10px; border:2px solid #E8ECF2; background:#fff; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-family:inherit; }
 .qty-btn:active { border-color:#003B8E; background:#EEF2F7; }
-.qty-num { flex:1; text-align:center; font-size:26px; font-weight:700; color:#003B8E; }
+.qty-num { flex:1; text-align:center; font-size:26px; font-weight:700; color:#003B8E; border:none; background:transparent; outline:none; font-family:inherit; -webkit-appearance:none; min-width:0; }
 
 .save-btn { width:100%; padding:15px; background:#003B8E; color:#fff; border:none; border-radius:12px; font-size:16px; font-weight:700; cursor:pointer; font-family:inherit; }
 .save-btn:active { background:#002870; }
@@ -114,7 +114,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC',san
     <label class="form-label">入庫數量</label>
     <div class="qty-row">
       <button class="qty-btn" id="addQtyMinus">－</button>
-      <div class="qty-num" id="addQtyNum">1</div>
+      <input class="qty-num" type="number" id="addQtyNum" value="1" min="1" inputmode="numeric">
       <button class="qty-btn" id="addQtyPlus">＋</button>
     </div>
     <button class="save-btn" id="addSaveBtn">儲存入庫</button>
@@ -245,7 +245,7 @@ function renderInventory(filter) {
 // ── 新增商品 ──
 document.getElementById('fabBtn').addEventListener('click', () => {
   addQty = 1;
-  document.getElementById('addQtyNum').textContent = '1';
+  document.getElementById('addQtyNum').value = '1';
   const codeEl = document.getElementById('addCode');
   const nameEl = document.getElementById('addName');
   codeEl.value = '';
@@ -276,16 +276,23 @@ document.getElementById('addCode').addEventListener('input', e => {
 });
 
 document.getElementById('addQtyMinus').addEventListener('click', () => {
-  if (addQty > 1) { addQty--; document.getElementById('addQtyNum').textContent = addQty; }
+  addQty = Math.max(1, (parseInt(document.getElementById('addQtyNum').value) || 1) - 1);
+  document.getElementById('addQtyNum').value = addQty;
 });
 document.getElementById('addQtyPlus').addEventListener('click', () => {
-  addQty++; document.getElementById('addQtyNum').textContent = addQty;
+  addQty = (parseInt(document.getElementById('addQtyNum').value) || 1) + 1;
+  document.getElementById('addQtyNum').value = addQty;
+});
+document.getElementById('addQtyNum').addEventListener('change', e => {
+  addQty = Math.max(1, parseInt(e.target.value) || 1);
+  e.target.value = addQty;
 });
 
 document.getElementById('addSaveBtn').addEventListener('click', async () => {
   const code = document.getElementById('addCode').value.trim();
   const name = document.getElementById('addName').value.trim() || (products[code] || code);
   if (!code) { showMsg('addStatus', '請先輸入 Model Code', 'err'); return; }
+  addQty = Math.max(1, parseInt(document.getElementById('addQtyNum').value) || 1);
 
   const btn = document.getElementById('addSaveBtn');
   btn.disabled = true;

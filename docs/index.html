@@ -138,6 +138,35 @@ body {
 }
 .field-input:focus { border-color: #003B8E; background: #fff; }
 
+/* ── Monthly Summary ── */
+.monthly-summary {
+  margin-top: 14px;
+  background: #EEF2F7;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.monthly-row {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  font-size: 13px; font-weight: 600; color: #003B8E;
+  margin-bottom: 4px;
+}
+.monthly-label { color: #5A6A8A; font-weight: 600; font-size: 12px; }
+.monthly-actual { font-size: 15px; font-weight: 800; color: #003B8E; }
+.monthly-gap-text {
+  font-size: 12px; color: #777; text-align: right;
+}
+.monthly-gap-text.close { color: #E65100; font-weight: 700; }
+.monthly-gap-text.done  { color: #2E7D32; font-weight: 700; }
+
+/* ── Weekly Range Badge ── */
+.weekly-range-badge {
+  margin-left: auto;
+  font-size: 11px; font-weight: 500; color: #6B7C9E;
+  background: #EEF2F7; border-radius: 8px;
+  padding: 2px 8px; flex-shrink: 0;
+}
+
 /* ── Tasks ── */
 .task-item {
   display: flex; align-items: center;
@@ -390,19 +419,27 @@ body {
         </div>
         <input class="field-input" type="text" id="nps" placeholder="—">
       </div>
-      <div class="metric-block full">
-        <div class="metric-label-row">
-          <span class="metric-label">部門TO成長率（MTD）</span>
-          <span class="metric-target-badge" id="growth_target_badge"></span>
-        </div>
-        <input class="field-input" type="text" id="growth" placeholder="例：+5.2%">
+    </div>
+    <div class="monthly-summary" id="monthlySummary" style="display:none">
+      <div class="monthly-row">
+        <span class="monthly-label">本月累計 TO</span>
+        <span class="monthly-actual" id="monthlyActualVal">—</span>
       </div>
+      <div class="monthly-gap-text" id="monthlyGapText"></div>
     </div>
   </div>
 
   <div class="card">
     <div class="card-header"><span class="icon">✅</span>例行事務</div>
     <div id="taskList"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">📅</span>每週例行事務
+      <span class="weekly-range-badge" id="weeklyRangeBadge"></span>
+    </div>
+    <div id="weeklyTaskList"></div>
   </div>
 
   <div class="card">
@@ -482,6 +519,8 @@ const DEFAULT_TASKS = [
   'Facing 狀況'
 ];
 let TASKS = [...DEFAULT_TASKS];
+let WEEKLY_TASKS = [];
+let weeklyData = {};
 const WEEKDAYS = ['日','一','二','三','四','五','六'];
 
 let curDate = todayDate();
@@ -495,6 +534,17 @@ function todayDate() {
 }
 function fmtKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function getWeekMonday(date) {
+  const d = new Date(date || curDate);
+  const day = d.getDay(); // 0=日
+  const diff = day === 0 ? -6 : 1 - day;
+  const m = new Date(d);
+  m.setDate(d.getDate() + diff);
+  return m;
+}
+function fmtWeekKey() {
+  return fmtKey(getWeekMonday(curDate));
 }
 
 // ── Firebase REST ──
@@ -549,7 +599,7 @@ function setStatus(msg, cls) {
 
 // ── Metric Targets ──
 function updateMetricTargets() {
-  [['qt','qt_target'], ['nps','nps_target'], ['growth','growth_target']].forEach(([key, cfgKey]) => {
+  [['qt','qt_target'], ['nps','nps_target']].forEach(([key, cfgKey]) => {
     const badge = document.getElementById(`${key}_target_badge`);
     const val = config[cfgKey];
     if (val) {
@@ -581,6 +631,102 @@ function updateAchievement() {
   }
   document.getElementById('achDetail').textContent = detail;
   bar.className = `achievement-bar show ${cls}`;
+}
+
+// ── Monthly Summary ──
+async function loadMonthlyData() {
+  const target = parseFloat(config.monthly_target);
+  if (!target) { document.getElementById('monthlySummary').style.display = 'none'; return; }
+
+  const y = curDate.getFullYear();
+  const mo = curDate.getMonth() + 1;
+  const start = `${y}-${String(mo).padStart(2,'0')}-01`;
+  const end   = `${y}-${String(mo).padStart(2,'0')}-31`;
+  const params = new URLSearchParams({ orderByKey: 'true', startAt: `"${start}"`, endAt: `"${end}"` });
+
+  try {
+    const res = await fetch(`${FIREBASE_URL}/days.json?${params}`);
+    const data = await res.json();
+    let mtd = 0;
+    if (data) Object.values(data).forEach(d => { const p = parseFloat(d.performance); if (p > 0) mtd += p; });
+
+    const gap = target - mtd;
+    const daysInMonth = new Date(y, mo, 0).getDate();
+    const daysLeft = daysInMonth - curDate.getDate();
+
+    document.getElementById('monthlySummary').style.display = '';
+    document.getElementById('monthlyActualVal').textContent =
+      `${Math.round(mtd).toLocaleString()} / ${Math.round(target).toLocaleString()}`;
+
+    const gapEl = document.getElementById('monthlyGapText');
+    if (gap <= 0) {
+      gapEl.textContent = `已達成月目標！超出 ${Math.abs(Math.round(gap)).toLocaleString()} 🎉`;
+      gapEl.className = 'monthly-gap-text done';
+    } else {
+      gapEl.textContent = `距月目標還差 ${Math.round(gap).toLocaleString()}（剩 ${daysLeft} 天）`;
+      gapEl.className = 'monthly-gap-text' + (gap < target * 0.15 ? ' close' : '');
+    }
+  } catch {}
+}
+
+// ── Weekly Tasks ──
+function parseWeeklyChecks(raw) {
+  if (!raw) return new Array(WEEKLY_TASKS.length).fill(null);
+  if (Array.isArray(raw) && raw.length === WEEKLY_TASKS.length) return raw;
+  const arr = new Array(WEEKLY_TASKS.length).fill(null);
+  Object.entries(raw).forEach(([i, v]) => {
+    const idx = parseInt(i);
+    if (idx >= 0 && idx < WEEKLY_TASKS.length) arr[idx] = v;
+  });
+  return arr;
+}
+
+function renderWeeklyTasks() {
+  const monday = getWeekMonday(curDate);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+  const badge = document.getElementById('weeklyRangeBadge');
+  if (badge) badge.textContent = `${fmt(monday)} - ${fmt(sunday)}`;
+
+  const checks = parseWeeklyChecks(weeklyData.checks);
+  weeklyData.checks = checks;
+
+  const container = document.getElementById('weeklyTaskList');
+  container.innerHTML = '';
+  if (WEEKLY_TASKS.length === 0) {
+    container.innerHTML = '<div style="color:#CCC;font-size:13px;text-align:center;padding:14px 0;">尚無每週例行事務</div>';
+    return;
+  }
+  WEEKLY_TASKS.forEach((name, i) => {
+    const state = checks[i];
+    const div = document.createElement('div');
+    div.className = 'task-item';
+    div.innerHTML = `
+      <div class="task-name">${name}</div>
+      <div class="task-btns">
+        <button class="tbtn tbtn-ok ${state === true ? 'on' : ''}" data-widx="${i}" data-val="ok">✓</button>
+        <button class="tbtn tbtn-no ${state === false ? 'on' : ''}" data-widx="${i}" data-val="no">✗</button>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+document.getElementById('weeklyTaskList').addEventListener('click', e => {
+  const btn = e.target.closest('.tbtn[data-widx]');
+  if (!btn) return;
+  const idx = +btn.dataset.widx;
+  const val = btn.dataset.val === 'ok' ? true : false;
+  if (!Array.isArray(weeklyData.checks)) weeklyData.checks = new Array(WEEKLY_TASKS.length).fill(null);
+  weeklyData.checks[idx] = weeklyData.checks[idx] === val ? null : val;
+  renderWeeklyTasks();
+  saveWeekly();
+});
+
+async function saveWeekly() {
+  try {
+    await fbSet(`weekly/${fmtWeekKey()}`, weeklyData);
+  } catch {}
 }
 
 // 將 Firebase 回傳的 tasks（可能是物件或陣列）轉成正確陣列
@@ -631,20 +777,22 @@ document.getElementById('taskList').addEventListener('click', e => {
 async function loadDay() {
   setStatus('載入中...', '');
   try {
-    const [rawDay, rawConfig] = await Promise.all([
+    const [rawDay, rawConfig, rawWeekly] = await Promise.all([
       fbGet(`days/${fmtKey(curDate)}`),
-      fbGet('config')
+      fbGet('config'),
+      fbGet(`weekly/${fmtWeekKey()}`)
     ]);
     config = rawConfig || {};
     // 從後台載入例行事務清單（若無則用預設）
     TASKS = (config.tasks && config.tasks.length > 0) ? config.tasks : [...DEFAULT_TASKS];
+    WEEKLY_TASKS = (config.weeklyTasks && config.weeklyTasks.length > 0) ? config.weeklyTasks : [];
+    weeklyData = rawWeekly || {};
     const d = rawDay || {};
     dayData = {
       target: d.target ?? null,
       performance: d.performance || '',
       qt: d.qt || '',
       nps: d.nps || '',
-      growth: d.growth || '',
       tasks: parseTasksFromFirebase(d.tasks),
       notes: d.notes || ''
     };
@@ -655,12 +803,13 @@ async function loadDay() {
     document.getElementById('performance').value = dayData.performance;
     document.getElementById('qt').value = dayData.qt;
     document.getElementById('nps').value = dayData.nps;
-    document.getElementById('growth').value = dayData.growth;
     document.getElementById('meetingNotes').value = dayData.notes;
 
     renderTasks();
+    renderWeeklyTasks();
     updateAchievement();
     loadHandovers();
+    loadMonthlyData();
     setStatus('已載入', 'saved');
   } catch(e) {
     setStatus('⚠ 載入失敗：' + e.message, 'error');
@@ -673,7 +822,6 @@ function collectData() {
   dayData.performance = document.getElementById('performance').value;
   dayData.qt = document.getElementById('qt').value;
   dayData.nps = document.getElementById('nps').value;
-  dayData.growth = document.getElementById('growth').value;
   dayData.notes = document.getElementById('meetingNotes').value;
 }
 
@@ -852,7 +1000,7 @@ async function goToday() {
 document.getElementById('btnPrev').addEventListener('click', () => changeDate(-1));
 document.getElementById('btnNext').addEventListener('click', () => changeDate(1));
 document.getElementById('btnToday').addEventListener('click', goToday);
-['performance','qt','nps','growth','meetingNotes'].forEach(id => {
+['performance','qt','nps','meetingNotes'].forEach(id => {
   document.getElementById(id).addEventListener('input', scheduleSave);
 });
 document.getElementById('targetVal').addEventListener('input', scheduleSave);
