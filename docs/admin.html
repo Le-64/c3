@@ -137,6 +137,21 @@ body {
 }
 .task-add-btn:active { background: #002870; }
 
+.metric-manage-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 0; border-bottom: 1px solid #F2F4F8;
+}
+.metric-manage-item:last-child { border-bottom: none; }
+.metric-manage-fields { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.metric-name-input, .metric-target-input {
+  width: 100%; padding: 8px 10px;
+  border: 1.5px solid #E8ECF2; border-radius: 8px;
+  font-size: 14px; color: #333; background: #FAFBFD;
+  outline: none; font-family: inherit;
+}
+.metric-name-input:focus, .metric-target-input:focus { border-color: #003B8E; background: #fff; }
+.metric-target-input { font-size: 13px; color: #666; }
+
 .info-box {
   background: #E8F0FE; border-radius: 12px;
   padding: 14px 16px; font-size: 13px;
@@ -172,21 +187,26 @@ body {
 
   <!-- 業績目標設定 -->
   <div class="card">
-    <div class="card-header">🎯 業績目標設定</div>
-    <div class="field-group">
-      <label class="field-label">Q/T（MTD）目標</label>
-      <input class="field-input" type="text" id="qtTargetInput" placeholder="例：85%">
-    </div>
-    <div class="field-group">
-      <label class="field-label">NPS（MTD）目標</label>
-      <input class="field-input" type="text" id="npsTargetInput" placeholder="例：90">
-    </div>
+    <div class="card-header">🎯 月 TO 目標</div>
     <div class="field-group">
       <label class="field-label">月 TO 目標（元）</label>
       <input class="field-input" type="number" id="monthlyTargetInput" placeholder="例：11200000">
     </div>
     <button class="save-btn" id="saveTargetBtn">儲存目標</button>
     <div class="status-msg" id="targetStatus"></div>
+  </div>
+
+  <!-- 業績指標管理 -->
+  <div class="card">
+    <div class="card-header">📊 業績指標管理</div>
+    <div id="adminMetricList"><div style="color:#CCC;font-size:13px;text-align:center;padding:10px 0;">載入中...</div></div>
+    <div class="task-add-row">
+      <input class="task-add-input" type="text" id="newMetricName" placeholder="指標名稱（例：Q/T）">
+      <input class="task-add-input" style="flex:0.8" type="text" id="newMetricTarget" placeholder="目標（選填）">
+      <button class="task-add-btn" id="addMetricBtn">+</button>
+    </div>
+    <button class="save-btn" id="saveMetricsBtn" style="margin-top:14px;">儲存指標清單</button>
+    <div class="status-msg" id="metricsStatus"></div>
   </div>
 
   <!-- 例行事務管理 -->
@@ -246,6 +266,7 @@ function tryLogin() {
   if (pw === ADMIN_PW) {
     document.getElementById('overlay').classList.add('hidden');
     loadTarget();
+    loadAdminMetrics();
     loadAdminTasks();
     loadAdminWeeklyTasks();
   } else {
@@ -263,8 +284,6 @@ async function loadTarget() {
   try {
     const res = await fetch(`${FIREBASE_URL}/config.json`);
     const data = await res.json();
-    document.getElementById('qtTargetInput').value      = data?.qt_target      || '';
-    document.getElementById('npsTargetInput').value     = data?.nps_target     || '';
     document.getElementById('monthlyTargetInput').value = data?.monthly_target || '';
   } catch {}
 }
@@ -282,8 +301,6 @@ document.getElementById('saveTargetBtn').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
           ...current,
-          qt_target:      document.getElementById('qtTargetInput').value.trim(),
-          nps_target:     document.getElementById('npsTargetInput').value.trim(),
           monthly_target: document.getElementById('monthlyTargetInput').value.trim()
         })
     });
@@ -302,6 +319,85 @@ function showMsg(id, msg, cls) {
   el.className = 'status-msg ' + cls;
   setTimeout(() => { el.textContent = ''; el.className = 'status-msg'; }, 4000);
 }
+
+// ── Admin Metrics ──
+let adminMetrics = [];
+
+async function loadAdminMetrics() {
+  try {
+    const res = await fetch(`${FIREBASE_URL}/config.json`);
+    const data = await res.json();
+    adminMetrics = Array.isArray(data?.metrics) ? data.metrics : [];
+  } catch { adminMetrics = []; }
+  renderAdminMetrics();
+}
+
+function renderAdminMetrics() {
+  const container = document.getElementById('adminMetricList');
+  container.innerHTML = '';
+  if (adminMetrics.length === 0) {
+    container.innerHTML = '<div style="color:#CCC;font-size:13px;text-align:center;padding:10px 0;">尚無指標</div>';
+    return;
+  }
+  adminMetrics.forEach((m, i) => {
+    const div = document.createElement('div');
+    div.className = 'metric-manage-item';
+    div.innerHTML = `
+      <span class="task-manage-num">${i + 1}</span>
+      <div class="metric-manage-fields">
+        <input class="metric-name-input" type="text" value="${safe(m.name)}" data-idx="${i}" data-field="name" placeholder="指標名稱">
+        <input class="metric-target-input" type="text" value="${safe(m.target || '')}" data-idx="${i}" data-field="target" placeholder="目標（選填）">
+      </div>
+      <button class="task-del-btn" data-idx="${i}">✕</button>`;
+    container.appendChild(div);
+  });
+}
+
+document.getElementById('adminMetricList').addEventListener('input', e => {
+  const input = e.target.closest('[data-field]');
+  if (!input) return;
+  adminMetrics[+input.dataset.idx][input.dataset.field] = input.value;
+});
+
+document.getElementById('adminMetricList').addEventListener('click', e => {
+  const btn = e.target.closest('.task-del-btn');
+  if (!btn) return;
+  adminMetrics.splice(+btn.dataset.idx, 1);
+  renderAdminMetrics();
+});
+
+document.getElementById('addMetricBtn').addEventListener('click', () => {
+  const nameEl = document.getElementById('newMetricName');
+  const targetEl = document.getElementById('newMetricTarget');
+  const name = nameEl.value.trim();
+  if (!name) return;
+  adminMetrics.push({ id: 'm' + Date.now(), name, target: targetEl.value.trim() });
+  nameEl.value = ''; targetEl.value = '';
+  renderAdminMetrics();
+});
+
+document.getElementById('newMetricName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('addMetricBtn').click();
+});
+
+document.getElementById('saveMetricsBtn').addEventListener('click', async () => {
+  document.getElementById('saveMetricsBtn').textContent = '儲存中...';
+  document.getElementById('saveMetricsBtn').disabled = true;
+  try {
+    const res = await fetch(`${FIREBASE_URL}/config.json`);
+    const current = (await res.json()) || {};
+    await fetch(`${FIREBASE_URL}/config.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...current, metrics: adminMetrics })
+    });
+    showMsg('metricsStatus', '✓ 指標清單已更新！', 'ok');
+  } catch {
+    showMsg('metricsStatus', '⚠ 儲存失敗', 'err');
+  }
+  document.getElementById('saveMetricsBtn').textContent = '儲存指標清單';
+  document.getElementById('saveMetricsBtn').disabled = false;
+});
 
 // ── Admin Tasks ──
 let adminTasks = [];

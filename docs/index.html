@@ -399,24 +399,10 @@ body {
       <div class="ach-pct" id="achPct">0%</div>
       <div class="ach-detail" id="achDetail"></div>
     </div>
-    <div class="metrics-grid">
+    <div class="metrics-grid" id="metricsGrid">
       <div class="metric-block full">
         <div class="metric-label">今日業績</div>
         <input class="field-input" type="number" id="performance" placeholder="輸入金額">
-      </div>
-      <div class="metric-block">
-        <div class="metric-label-row">
-          <span class="metric-label">Q/T（MTD）</span>
-          <span class="metric-target-badge" id="qt_target_badge"></span>
-        </div>
-        <input class="field-input" type="text" id="qt" placeholder="—">
-      </div>
-      <div class="metric-block">
-        <div class="metric-label-row">
-          <span class="metric-label">NPS（MTD）</span>
-          <span class="metric-target-badge" id="nps_target_badge"></span>
-        </div>
-        <input class="field-input" type="text" id="nps" placeholder="—">
       </div>
     </div>
     <div class="monthly-summary" id="monthlySummary" style="display:none">
@@ -596,17 +582,24 @@ function setStatus(msg, cls) {
   el.className = 'save-bar ' + (cls || '');
 }
 
-// ── Metric Targets ──
-function updateMetricTargets() {
-  [['qt','qt_target'], ['nps','nps_target']].forEach(([key, cfgKey]) => {
-    const badge = document.getElementById(`${key}_target_badge`);
-    const val = config[cfgKey];
-    if (val) {
-      badge.textContent = '目標 ' + val;
-      badge.classList.add('show');
-    } else {
-      badge.classList.remove('show');
-    }
+// ── Custom Metrics ──
+function renderMetrics() {
+  const grid = document.getElementById('metricsGrid');
+  grid.querySelectorAll('.metric-custom').forEach(el => el.remove());
+  const cfgMetrics = config.metrics || [];
+  cfgMetrics.forEach((m, i) => {
+    const isFull = cfgMetrics.length % 2 === 1 && i === cfgMetrics.length - 1;
+    const val = (dayData.metrics && dayData.metrics[m.id]) || '';
+    const div = document.createElement('div');
+    div.className = 'metric-block metric-custom' + (isFull ? ' full' : '');
+    div.innerHTML = `
+      <div class="metric-label-row">
+        <span class="metric-label">${safe(m.name)}</span>
+        ${m.target ? `<span class="metric-target-badge show">目標 ${safe(m.target)}</span>` : ''}
+      </div>
+      <input class="field-input" type="text" id="cmetric_${safe(m.id)}" value="${safe(val)}" placeholder="—">`;
+    div.querySelector('input').addEventListener('input', scheduleSave);
+    grid.appendChild(div);
   });
 }
 
@@ -793,18 +786,15 @@ async function loadDay() {
     dayData = {
       target: d.target ?? null,
       performance: d.performance || '',
-      qt: d.qt || '',
-      nps: d.nps || '',
+      metrics: d.metrics || {},
       tasks: parseTasksFromFirebase(d.tasks),
       notes: d.notes || ''
     };
 
     // 目標優先讀當天的，沒有的話用 config 預設
     document.getElementById('targetVal').value = dayData.target ?? config.target ?? '';
-    updateMetricTargets();
     document.getElementById('performance').value = dayData.performance;
-    document.getElementById('qt').value = dayData.qt;
-    document.getElementById('nps').value = dayData.nps;
+    renderMetrics();
     document.getElementById('meetingNotes').value = dayData.notes;
 
     renderTasks();
@@ -822,9 +812,12 @@ async function loadDay() {
 function collectData() {
   dayData.target = parseFloat(document.getElementById('targetVal').value) || null;
   dayData.performance = document.getElementById('performance').value;
-  dayData.qt = document.getElementById('qt').value;
-  dayData.nps = document.getElementById('nps').value;
   dayData.notes = document.getElementById('meetingNotes').value;
+  dayData.metrics = {};
+  (config.metrics || []).forEach(m => {
+    const el = document.getElementById(`cmetric_${m.id}`);
+    if (el) dayData.metrics[m.id] = el.value;
+  });
 }
 
 function scheduleSave() {
@@ -1002,7 +995,7 @@ async function goToday() {
 document.getElementById('btnPrev').addEventListener('click', () => changeDate(-1));
 document.getElementById('btnNext').addEventListener('click', () => changeDate(1));
 document.getElementById('btnToday').addEventListener('click', goToday);
-['performance','qt','nps','meetingNotes'].forEach(id => {
+['performance','meetingNotes'].forEach(id => {
   document.getElementById(id).addEventListener('input', scheduleSave);
 });
 document.getElementById('targetVal').addEventListener('input', scheduleSave);
