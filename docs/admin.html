@@ -163,6 +163,28 @@ body {
   border-radius: 4px; font-family: monospace;
 }
 
+.toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-top: 1px solid #F2F4F8; margin-top: 14px;
+}
+.toggle-label { font-size: 14px; color: #333; font-weight: 600; }
+.toggle-switch {
+  position: relative; width: 46px; height: 26px;
+  display: inline-block; flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0; background: #DDD; border-radius: 26px;
+  cursor: pointer; transition: background 0.2s;
+}
+.toggle-track::before {
+  content: ''; position: absolute; width: 20px; height: 20px;
+  left: 3px; top: 3px; background: #fff; border-radius: 50%;
+  transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-switch input:checked + .toggle-track { background: #003B8E; }
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(20px); }
+
 </style>
 </head>
 <body>
@@ -192,7 +214,14 @@ body {
       <label class="field-label">月 TO 目標（元）</label>
       <input class="field-input" type="number" id="monthlyTargetInput" placeholder="例：11200000">
     </div>
-    <button class="save-btn" id="saveTargetBtn">儲存目標</button>
+    <div class="toggle-row">
+      <span class="toggle-label">顯示本月累積 TO</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="showMonthlyTO" checked>
+        <span class="toggle-track"></span>
+      </label>
+    </div>
+    <button class="save-btn" id="saveTargetBtn" style="margin-top:14px;">儲存目標</button>
     <div class="status-msg" id="targetStatus"></div>
   </div>
 
@@ -285,6 +314,7 @@ async function loadTarget() {
     const res = await fetch(`${FIREBASE_URL}/config.json`);
     const data = await res.json();
     document.getElementById('monthlyTargetInput').value = data?.monthly_target || '';
+    document.getElementById('showMonthlyTO').checked = data?.show_monthly_to !== false;
   } catch {}
 }
 
@@ -301,7 +331,8 @@ document.getElementById('saveTargetBtn').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
           ...current,
-          monthly_target: document.getElementById('monthlyTargetInput').value.trim()
+          monthly_target: document.getElementById('monthlyTargetInput').value.trim(),
+          show_monthly_to: document.getElementById('showMonthlyTO').checked
         })
     });
     showMsg('targetStatus', '✓ 目標已更新！', 'ok');

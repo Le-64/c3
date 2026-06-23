@@ -282,18 +282,17 @@ body {
   align-items: center; justify-content: center; flex-shrink: 0;
 }
 .ho-edit-btn:active { background: #E8F0FE; }
-.ho-editable { cursor: text; }
-.ho-editable:hover { text-decoration: underline dotted #AAA; }
+.ho-editable { cursor: default; }
 .ho-new-img-wrap { margin-top: 10px; }
 .ho-new-img-wrap img { max-width:100%; max-height:150px; border-radius:10px; display:block; margin-bottom:8px; object-fit:contain; background:#EEF2F7; }
 .ho-img-actions { display: flex; gap: 8px; }
 
 /* ── Edit Sheet ── */
 .edit-textarea {
-  width: 100%; min-height: 80px; padding: 12px;
+  width: 100%; min-height: 140px; padding: 12px;
   border: 2px solid #E8ECF2; border-radius: 10px;
   font-size: 15px; line-height: 1.6; color: #333;
-  background: #FAFBFD; resize: none; outline: none;
+  background: #FAFBFD; resize: vertical; outline: none;
   font-family: inherit; margin-bottom: 14px;
   transition: border-color 0.2s;
 }
@@ -330,6 +329,19 @@ body {
 .edit-status { text-align: center; font-size: 13px; margin-top: 8px; min-height: 18px; }
 .edit-status.ok { color: #4CAF50; }
 .edit-status.err { color: #F44336; }
+
+/* ── HO Edit Sheet ── */
+.ho-edit-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:100; opacity:0; pointer-events:none; transition:opacity 0.25s; }
+.ho-edit-overlay.show { opacity:1; pointer-events:auto; }
+.ho-edit-panel { position:fixed; bottom:0; left:50%; width:100%; max-width:600px; transform:translateX(-50%) translateY(100%); background:#fff; border-radius:20px 20px 0 0; z-index:101; max-height:85vh; overflow-y:auto; transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); padding-bottom:env(safe-area-inset-bottom,16px); }
+.ho-edit-panel.show { transform:translateX(-50%) translateY(0); }
+.ho-edit-handle { width:40px; height:4px; background:#E0E0E0; border-radius:2px; margin:12px auto 0; }
+.ho-edit-title { font-size:17px; font-weight:700; color:#003B8E; padding:16px 20px 0; }
+.ho-edit-body { padding:16px 20px 24px; }
+.ho-edit-section-label { font-size:13px; font-weight:600; color:#666; margin-bottom:6px; display:block; }
+.ho-edit-img-item { margin-bottom:10px; background:#EEF2F7; border-radius:10px; overflow:hidden; }
+.ho-edit-img-item img { width:100%; max-height:160px; object-fit:contain; display:block; background:#EEF2F7; }
+.ho-edit-img-item-actions { display:flex; gap:8px; padding:8px; }
 
 /* ── Annotator ── */
 .annotator-overlay {
@@ -465,7 +477,22 @@ body {
   <div class="save-bar" id="saveBar">載入中...</div>
 </div>
 
-<input type="file" id="editImgFile" accept="image/*" style="display:none">
+<!-- 交接編輯 Sheet -->
+<div class="ho-edit-overlay" id="hoEditOverlay"></div>
+<div class="ho-edit-panel" id="hoEditPanel">
+  <div class="ho-edit-handle"></div>
+  <div class="ho-edit-title">編輯交接事項</div>
+  <div class="ho-edit-body">
+    <label class="ho-edit-section-label">交接內容</label>
+    <textarea class="edit-textarea" id="hoEditText" placeholder="輸入交接內容"></textarea>
+    <label class="ho-edit-section-label">圖片（最多 3 張）</label>
+    <div id="hoEditImgsContainer"></div>
+    <button class="edit-cam-btn" id="hoEditCamBtn">📷 新增圖片</button>
+    <input type="file" id="hoEditImgFile" accept="image/*" style="display:none">
+    <button class="edit-save-btn" id="hoEditSaveBtn">儲存</button>
+    <div class="edit-status" id="hoEditStatus"></div>
+  </div>
+</div>
 
 <!-- 標註編輯器 -->
 <div class="annotator-overlay" id="annotatorOverlay">
@@ -628,7 +655,7 @@ function updateAchievement() {
 // ── Monthly Summary ──
 async function loadMonthlyData() {
   const target = parseFloat(config.monthly_target);
-  if (!target) { document.getElementById('monthlySummary').style.display = 'none'; return; }
+  if (!target || config.show_monthly_to === false) { document.getElementById('monthlySummary').style.display = 'none'; return; }
 
   const y = curDate.getFullYear();
   const mo = curDate.getMonth() + 1;
@@ -880,7 +907,7 @@ function renderHandovers() {
       div.className = 'ho-item';
       div.innerHTML = `
         <button class="ho-check-btn" data-id="${id}">☐</button>
-        ${item.img ? `<img class="ho-thumb" src="${item.img}" data-id="${id}" alt="">` : ''}
+        ${getImgs(item).map(src => `<img class="ho-thumb" src="${src}" alt="">`).join('')}
         <span class="ho-item-text ho-editable" data-id="${id}">${safe(item.text)}</span>
         <span class="ho-item-date">${dateStr}</span>
         <button class="ho-edit-btn" data-id="${id}" title="編輯">✎</button>`;
@@ -896,7 +923,7 @@ function renderHandovers() {
     div.className = 'ho-item';
     div.innerHTML = `
       <span class="ho-item-dot">•</span>
-      ${item.img ? `<img class="ho-thumb" src="${item.img}" data-id="${id}" alt="">` : ''}
+      ${getImgs(item).map(src => `<img class="ho-thumb" src="${src}" alt="">`).join('')}
       <span class="ho-item-text ho-editable" data-id="${id}">${safe(item.text)}</span>
       <button class="ho-edit-btn" data-id="${id}" title="編輯">✎</button>
       <button class="ho-del-btn" data-id="${id}" title="刪除">✕</button>`;
@@ -915,7 +942,7 @@ async function addHandoverItem() {
   input.value = '';
   const item = { text, date: fmtKey(curDate), done: false, ts: Date.now() };
   if (newHoImg) {
-    item.img = newHoImg;
+    item.imgs = [newHoImg];
     newHoImg = null;
     document.getElementById('hoNewImgWrap').style.display = 'none';
     document.getElementById('hoNewImgPreview').src = '';
@@ -933,18 +960,14 @@ async function addHandoverItem() {
 document.getElementById('hoBacklog').addEventListener('click', async e => {
   const editBtn = e.target.closest('.ho-edit-btn');
   if (editBtn) { handleEditBtn(editBtn.dataset.id, allHandovers[editBtn.dataset.id]); return; }
-  const thumb = e.target.closest('.ho-thumb');
-  if (thumb) { handleEditBtn(thumb.dataset.id, allHandovers[thumb.dataset.id]); return; }
-  const textEl = e.target.closest('.ho-editable');
-  if (textEl) { startInlineEdit(textEl); return; }
   const btn = e.target.closest('.ho-check-btn');
   if (!btn) return;
   const id = btn.dataset.id;
   btn.textContent = '☑';
   btn.disabled = true;
   try {
-    await fbPatch(`handovers/${id}`, { done: true });
-    allHandovers[id].done = true;
+    await fbDelete(`handovers/${id}`);
+    delete allHandovers[id];
     renderHandovers();
   } catch {
     btn.textContent = '☐';
@@ -955,10 +978,6 @@ document.getElementById('hoBacklog').addEventListener('click', async e => {
 document.getElementById('hoToday').addEventListener('click', async e => {
   const editBtn = e.target.closest('.ho-edit-btn');
   if (editBtn) { handleEditBtn(editBtn.dataset.id, allHandovers[editBtn.dataset.id]); return; }
-  const thumb = e.target.closest('.ho-thumb');
-  if (thumb) { handleEditBtn(thumb.dataset.id, allHandovers[thumb.dataset.id]); return; }
-  const textEl = e.target.closest('.ho-editable');
-  if (textEl) { startInlineEdit(textEl); return; }
   const btn = e.target.closest('.ho-del-btn');
   if (!btn) return;
   const id = btn.dataset.id;
@@ -1009,18 +1028,18 @@ function compressImage(file) {
       img.onload = () => {
         const canvas = document.createElement('canvas');
         let w = img.width, h = img.height;
-        const MAX = 1000;
+        const MAX = 1600;
         if (w > MAX || h > MAX) {
           const r = Math.min(MAX / w, MAX / h);
           w = Math.round(w * r); h = Math.round(h * r);
         }
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        let q = 0.8, result;
+        let q = 0.92, result;
         do {
           result = canvas.toDataURL('image/jpeg', q);
-          q -= 0.1;
-        } while (result.length > 273000 && q > 0.2); // ~200KB
+          q -= 0.05;
+        } while (result.length > 682000 && q > 0.5); // ~500KB
         resolve(result);
       };
       img.src = e.target.result;
@@ -1082,34 +1101,102 @@ document.getElementById('hoRemoveImgBtn').addEventListener('click', () => {
   document.getElementById('hoNewImgPreview').src = '';
 });
 
-// ── Edit Handover Image ──
+// ── Edit Handover Sheet ──
 let editingHoId = null;
+let hoEditCurrentImgs = [];
+
+function getImgs(item) {
+  if (Array.isArray(item.imgs) && item.imgs.length) return [...item.imgs];
+  if (item.img) return [item.img];
+  return [];
+}
 
 function handleEditBtn(id, item) {
   editingHoId = id;
-  if (item && item.img) {
-    openAnnotator(item.img, result => saveHoImg(editingHoId, result));
-  } else {
-    document.getElementById('editImgFile').click();
-  }
+  hoEditCurrentImgs = getImgs(item);
+
+  document.getElementById('hoEditText').value = item.text || '';
+  renderHoEditImgs();
+  document.getElementById('hoEditStatus').textContent = '';
+  document.getElementById('hoEditStatus').className = 'edit-status';
+
+  document.getElementById('hoEditOverlay').classList.add('show');
+  document.getElementById('hoEditPanel').classList.add('show');
+  setTimeout(() => document.getElementById('hoEditText').focus(), 320);
 }
 
-document.getElementById('editImgFile').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  if (!file || !editingHoId) return;
-  const compressed = await compressImage(file);
-  e.target.value = '';
-  openAnnotator(compressed, result => saveHoImg(editingHoId, result));
+function renderHoEditImgs() {
+  const container = document.getElementById('hoEditImgsContainer');
+  const camBtn = document.getElementById('hoEditCamBtn');
+  container.innerHTML = '';
+
+  hoEditCurrentImgs.forEach((src, idx) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'ho-edit-img-item';
+    wrap.innerHTML = `
+      <img src="${src}" alt="">
+      <div class="ho-edit-img-item-actions">
+        <button class="edit-annotate-btn" data-idx="${idx}">✏️ 標註</button>
+        <button class="edit-remove-img-btn" data-idx="${idx}">✕ 移除</button>
+      </div>`;
+    wrap.querySelector('.edit-annotate-btn').addEventListener('click', () => {
+      openAnnotator(hoEditCurrentImgs[idx], result => {
+        hoEditCurrentImgs[idx] = result;
+        renderHoEditImgs();
+      });
+    });
+    wrap.querySelector('.edit-remove-img-btn').addEventListener('click', () => {
+      hoEditCurrentImgs.splice(idx, 1);
+      renderHoEditImgs();
+    });
+    container.appendChild(wrap);
+  });
+
+  camBtn.style.display = hoEditCurrentImgs.length >= 3 ? 'none' : '';
+}
+
+function closeHoEditSheet() {
+  document.getElementById('hoEditOverlay').classList.remove('show');
+  document.getElementById('hoEditPanel').classList.remove('show');
+}
+
+document.getElementById('hoEditOverlay').addEventListener('click', closeHoEditSheet);
+
+document.getElementById('hoEditCamBtn').addEventListener('click', () => {
+  document.getElementById('hoEditImgFile').click();
 });
 
-async function saveHoImg(id, imgData) {
-  if (!id) return;
+document.getElementById('hoEditImgFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file || hoEditCurrentImgs.length >= 3) return;
+  const compressed = await compressImage(file);
+  e.target.value = '';
+  hoEditCurrentImgs.push(compressed);
+  renderHoEditImgs();
+});
+
+document.getElementById('hoEditSaveBtn').addEventListener('click', async () => {
+  if (!editingHoId) return;
+  const newText = document.getElementById('hoEditText').value.trim();
+  if (!newText) {
+    document.getElementById('hoEditStatus').textContent = '請輸入交接內容';
+    document.getElementById('hoEditStatus').className = 'edit-status err';
+    return;
+  }
+  const btn = document.getElementById('hoEditSaveBtn');
+  btn.disabled = true;
   try {
-    await fbPatch(`handovers/${id}`, { img: imgData });
-    allHandovers[id].img = imgData;
+    const patch = { text: newText, imgs: hoEditCurrentImgs, img: null };
+    await fbPatch(`handovers/${editingHoId}`, patch);
+    Object.assign(allHandovers[editingHoId], patch);
     renderHandovers();
-  } catch { alert('儲存失敗，請確認網路'); }
-}
+    closeHoEditSheet();
+  } catch {
+    document.getElementById('hoEditStatus').textContent = '⚠ 儲存失敗，請確認網路';
+    document.getElementById('hoEditStatus').className = 'edit-status err';
+  }
+  btn.disabled = false;
+});
 
 // ── Annotator ──
 let annotatorCallback = null;

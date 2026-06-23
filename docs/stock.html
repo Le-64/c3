@@ -31,6 +31,8 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC',san
 .item-right { text-align:right; flex-shrink:0; }
 .qty-badge { background:#003B8E; color:#fff; font-size:16px; font-weight:700; min-width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; padding:0 8px; }
 .qty-badge.low { background:#F44336; }
+.qty-badge.stale { background:#F57C00; }
+.qty-badge.old { background:#F44336; }
 .item-date { font-size:11px; color:#BBB; margin-top:4px; }
 
 .empty { text-align:center; padding:60px 20px; color:#BBB; font-size:15px; line-height:2; }
@@ -112,11 +114,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC',san
     <label class="form-label">商品名稱</label>
     <input class="form-input" type="text" id="addName" placeholder="輸入 Model Code 後自動帶入">
     <label class="form-label">入庫數量</label>
-    <div class="qty-row">
-      <button class="qty-btn" id="addQtyMinus">－</button>
-      <input class="qty-num" type="number" id="addQtyNum" value="1" min="1" inputmode="numeric">
-      <button class="qty-btn" id="addQtyPlus">＋</button>
-    </div>
+    <input class="form-input" type="number" id="addQtyNum" value="1" min="1" inputmode="numeric" style="margin-bottom:14px;">
     <button class="save-btn" id="addSaveBtn">儲存入庫</button>
     <div class="status-msg" id="addStatus"></div>
   </div>
@@ -133,10 +131,8 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC',san
     <div class="detail-name" id="detailName"></div>
     <div class="detail-code" id="detailCode"></div>
     <div class="detail-qty-label">現有庫存數量</div>
-    <div class="detail-qty-row">
-      <button class="detail-qty-btn" id="detailMinus">－</button>
-      <div class="detail-qty-num" id="detailQtyNum">0</div>
-      <button class="detail-qty-btn" id="detailPlus">＋</button>
+    <div style="margin-bottom:22px;">
+      <input class="form-input" type="number" id="detailQtyNum" value="0" min="0" inputmode="numeric" style="text-align:center;font-size:26px;font-weight:700;color:#003B8E;">
     </div>
     <div class="detail-action-row">
       <button class="detail-save-btn" id="detailSave">儲存</button>
@@ -169,6 +165,15 @@ function formatDate(ts) {
   if (!ts) return '';
   const d = new Date(ts);
   return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+function badgeClass(item) {
+  if (item.ts) {
+    const days = (Date.now() - item.ts) / 86400000;
+    if (days >= 14) return ' old';
+    if (days >= 7)  return ' stale';
+  }
+  return item.qty <= 1 ? ' low' : '';
 }
 
 // ── 商品資料庫 ──
@@ -234,7 +239,7 @@ function renderInventory(filter) {
         <div class="item-code"># ${safe(code)}</div>
       </div>
       <div class="item-right">
-        <div class="qty-badge${item.qty <= 1 ? ' low' : ''}">${item.qty}</div>
+        <div class="qty-badge${badgeClass(item)}">${item.qty}</div>
         <div class="item-date">${formatDate(item.ts)}</div>
       </div>`;
     card.addEventListener('click', () => openDetail(code, item));
@@ -275,14 +280,6 @@ document.getElementById('addCode').addEventListener('input', e => {
   }
 });
 
-document.getElementById('addQtyMinus').addEventListener('click', () => {
-  addQty = Math.max(1, (parseInt(document.getElementById('addQtyNum').value) || 1) - 1);
-  document.getElementById('addQtyNum').value = addQty;
-});
-document.getElementById('addQtyPlus').addEventListener('click', () => {
-  addQty = (parseInt(document.getElementById('addQtyNum').value) || 1) + 1;
-  document.getElementById('addQtyNum').value = addQty;
-});
 document.getElementById('addQtyNum').addEventListener('change', e => {
   addQty = Math.max(1, parseInt(e.target.value) || 1);
   e.target.value = addQty;
@@ -333,20 +330,14 @@ function openDetail(code, item) {
   img.src = imgUrl(code);
   document.getElementById('detailName').textContent = item.name || code;
   document.getElementById('detailCode').textContent = `# ${code}`;
-  document.getElementById('detailQtyNum').textContent = detailQty;
+  document.getElementById('detailQtyNum').value = detailQty;
   document.getElementById('detailStatus').textContent = '';
   document.getElementById('detailStatus').className = 'status-msg';
   openSheet('detailSheet');
 }
 
-document.getElementById('detailMinus').addEventListener('click', () => {
-  if (detailQty > 0) { detailQty--; document.getElementById('detailQtyNum').textContent = detailQty; }
-});
-document.getElementById('detailPlus').addEventListener('click', () => {
-  detailQty++; document.getElementById('detailQtyNum').textContent = detailQty;
-});
-
 document.getElementById('detailSave').addEventListener('click', async () => {
+  detailQty = Math.max(0, parseInt(document.getElementById('detailQtyNum').value) || 0);
   const btn = document.getElementById('detailSave');
   btn.disabled = true;
   try {
